@@ -111,7 +111,7 @@ function addAllStopMarkers() {
     route.stops.forEach((stop) => {
       const isTerminal = stop.starts || stop.ends;
       const icon = makeStopIcon(route.color, isTerminal);
-      const marker = L.marker([stop.lat, stop.lng], { icon })
+      const marker = L.marker([stop.lat, stop.lng], { icon, pane: 'stopDots' })
         .addTo(map)
         .bindPopup(`
           <div class="popup-route" style="background:${route.color}20;border-left:3px solid ${route.color};padding:4px 8px;border-radius:4px;margin-bottom:6px;font-size:0.72rem;font-weight:600;color:${route.color}">${route.short}</div>
