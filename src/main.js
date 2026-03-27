@@ -610,3 +610,5 @@ startGeolocation();
 setupCenterButton();
 setupDraggablePanel();
 setupDownloadButton();
+setupEditBar();
+setupEditModal();
