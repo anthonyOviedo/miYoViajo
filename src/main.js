@@ -251,6 +251,7 @@ function setActiveRoute(idx) {
   renderScheduleChips();
   updateNearestStop();
   fitRoute(idx);
+  updateBuses();
 }
 
 // ── Schedule chips ──
