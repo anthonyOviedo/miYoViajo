@@ -18,7 +18,8 @@ let saveTilesControl = null;
 let userLatLng = null;
 let userMarker = null;
 let activeRouteIdx = 0;
-let stopMarkers = [];   // { marker, routeIdx }
+let stopMarkers = [];      // { marker, routeIdx }
+let routePolylines = [];  // { casing, line }
 
 // ── Map ──
 function initMap() {
@@ -167,45 +168,31 @@ function renderScheduleChips() {
 
 // ── Stops list ──
 function renderStopsList() {
-  const container = document.getElementById('stops-items');
-  container.innerHTML = '';
+  const select = document.getElementById('stops-select');
+  select.innerHTML = '';
   const route = ROUTES[activeRouteIdx];
   const sorted = [...route.stops].sort((a, b) => a.time.localeCompare(b.time));
 
-  sorted.forEach((stop, idx) => {
-    const isTerminal = stop.starts || stop.ends;
-    const isLast = idx === sorted.length - 1;
-    const item = document.createElement('div');
-    item.className = 'stop-item';
-    item.dataset.id = stop.id;
-    item.innerHTML = `
-      <div class="stop-timeline">
-        <div class="stop-dot ${isTerminal ? 'terminal' : ''}" style="${isTerminal ? `--dot-color:${route.color}` : ''}"></div>
-        ${!isLast ? '<div class="stop-line"></div>' : ''}
-      </div>
-      <div class="stop-info">
-        <div class="stop-name">${stop.title}</div>
-        <div class="stop-meta">${stop.address}</div>
-      </div>
-      <div class="stop-time-badge">+${stop.time}</div>
-    `;
-    item.addEventListener('click', () => {
-      map.setView([stop.lat, stop.lng], 16, { animate: true });
-      expandPanel('half');
-    });
-    container.appendChild(item);
+  sorted.forEach((stop) => {
+    const opt = document.createElement('option');
+    opt.value = stop.id;
+    opt.textContent = `${stop.title}  (+${stop.time})`;
+    select.appendChild(opt);
   });
+
+  select.style.borderColor = route.color;
+
+  select.onchange = () => {
+    const stop = route.stops.find(s => s.id === select.value);
+    if (!stop) return;
+    map.setView([stop.lat, stop.lng], 16, { animate: true });
+    expandPanel('half');
+  };
 }
 
 function highlightStop(id) {
-  document.querySelectorAll('.stop-item').forEach(el => el.classList.remove('highlighted'));
-  document.querySelectorAll('.stop-dot').forEach(el => el.classList.remove('nearest'));
-  const item = document.querySelector(`.stop-item[data-id="${id}"]`);
-  if (item) {
-    item.classList.add('highlighted');
-    item.querySelector('.stop-dot')?.classList.add('nearest');
-    item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
+  const select = document.getElementById('stops-select');
+  if (select) select.value = id;
 }
 
 // ── Geolocation ──
