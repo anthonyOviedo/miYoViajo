@@ -1,41 +1,152 @@
 import L from 'leaflet';
+import { tileLayerOffline, savetiles, TileLayerOffline } from 'leaflet.offline';
 import { STOPS } from './stops.js';
 
-// ── Leaflet icon fix for Vite ──
+// ── Leaflet icon fix ──
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png?url';
 import markerIcon2xUrl from 'leaflet/dist/images/marker-icon-2x.png?url';
 import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png?url';
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl: markerIconUrl, iconRetinaUrl: markerIcon2xUrl, shadowUrl: markerShadowUrl });
 
+// ── Costa Rica bounds ──
+const CR_BOUNDS = L.latLngBounds([8.03, -85.95], [11.22, -82.56]);
+
 // ── State ──
 let userLatLng = null;
 let userMarker = null;
 let map = null;
+let offlineLayer = null;
+let saveTilesControl = null;
 
 // ── Map ──
 function initMap() {
-  const topbarH = document.getElementById('topbar').offsetHeight;
-
   map = L.map('map', {
     center: [9.938381, -84.0864747],
     zoom: 12,
     zoomControl: false,
     attributionControl: true,
-    paddingTopLeft: [0, topbarH],
+    maxBounds: CR_BOUNDS.pad(0.3),
   });
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© OpenStreetMap © CARTO',
-    subdomains: 'abcd',
-    maxZoom: 19,
-  }).addTo(map);
+  offlineLayer = tileLayerOffline(
+    'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    {
+      attribution: '© OpenStreetMap © CARTO',
+      subdomains: 'abcd',
+      maxZoom: 19,
+      crossOrigin: true,
+    }
+  ).addTo(map);
 
   L.control.zoom({ position: 'topright' }).addTo(map);
 
+  setupOfflineControl();
   addStopMarkers();
 }
 
+// ── Offline tile download ──
+function setupOfflineControl() {
+  saveTilesControl = savetiles(offlineLayer, {
+    zoomlevels: [6, 7, 8, 9, 10, 11, 12, 13, 14],
+    maxZoom: 14,
+    bounds: CR_BOUNDS,
+    confirm(layer, successCallback) {
+      successCallback();
+    },
+    confirmRemoval(layer, successCallback) {
+      if (confirm('¿Eliminar el mapa descargado?')) successCallback();
+    },
+    saveText: '',
+    rmText: '',
+  });
+
+  // hook into events for our custom UI
+  offlineLayer.on('savestart', (e) => {
+    updateDownloadUI('downloading', 0, e._tilesforSave?.length || 0);
+  });
+
+  offlineLayer.on('savetileend', (e) => {
+    const saved = e._tilestoSave - (e._tilesforSave?.length || 0);
+    updateDownloadUI('downloading', saved, e._tilestoSave);
+  });
+
+  offlineLayer.on('loadend', () => {
+    updateDownloadUI('done');
+    checkOfflineStatus();
+  });
+
+  offlineLayer.on('tilesremoved', () => {
+    updateDownloadUI('idle');
+    checkOfflineStatus();
+  });
+
+  checkOfflineStatus();
+}
+
+function checkOfflineStatus() {
+  // Check if we have cached tiles
+  const btn = document.getElementById('download-btn');
+  if (!btn) return;
+  const statusEl = document.getElementById('offline-status');
+
+  // Use the storageInfo to check
+  if (offlineLayer.getTileUrls) {
+    const urls = offlineLayer.getTileUrls(CR_BOUNDS, 6, 14);
+    if (statusEl) statusEl.textContent = `${urls.length} tiles para Costa Rica`;
+  }
+}
+
+function updateDownloadUI(state, saved = 0, total = 0) {
+  const btn = document.getElementById('download-btn');
+  const progress = document.getElementById('download-progress');
+  const label = document.getElementById('download-label');
+  if (!btn) return;
+
+  if (state === 'downloading') {
+    btn.disabled = true;
+    btn.classList.add('downloading');
+    btn.innerHTML = '⬇ Descargando...';
+    if (progress) {
+      progress.style.display = 'block';
+      const pct = total > 0 ? Math.round((saved / total) * 100) : 0;
+      const fill = document.getElementById('download-fill');
+      if (fill) fill.style.width = pct + '%';
+      if (label) label.textContent = `${saved} / ${total} tiles (${pct}%)`;
+    }
+  } else if (state === 'done') {
+    btn.disabled = false;
+    btn.classList.remove('downloading');
+    btn.classList.add('saved');
+    btn.innerHTML = '✓ Mapa guardado';
+    if (progress) progress.style.display = 'none';
+    if (label) label.textContent = 'Disponible sin conexión';
+  } else {
+    btn.disabled = false;
+    btn.classList.remove('downloading', 'saved');
+    btn.innerHTML = '⬇ Descargar mapa';
+    if (progress) progress.style.display = 'none';
+  }
+}
+
+function setupDownloadButton() {
+  const btn = document.getElementById('download-btn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    if (btn.classList.contains('saved')) {
+      // Remove cached tiles
+      saveTilesControl._rmTiles();
+    } else {
+      // Download Costa Rica tiles
+      map.fitBounds(CR_BOUNDS);
+      setTimeout(() => {
+        saveTilesControl._saveTiles();
+      }, 400);
+    }
+  });
+}
+
+// ── Stop markers ──
 function addStopMarkers() {
   STOPS.forEach((stop) => {
     const isTerminal = stop.starts || stop.ends;
@@ -45,7 +156,6 @@ function addStopMarkers() {
       iconSize: isTerminal ? [14, 14] : [10, 10],
       iconAnchor: isTerminal ? [7, 7] : [5, 5],
     });
-
     L.marker([stop.lat, stop.lng], { icon })
       .addTo(map)
       .bindPopup(`
@@ -73,7 +183,6 @@ function updateLocation(pos) {
   userLatLng = L.latLng(lat, lng);
   if (!userMarker) userMarker = createUserMarker(userLatLng);
   else userMarker.setLatLng(userLatLng);
-
   document.getElementById('location-dot').classList.add('active');
   document.getElementById('location-text').textContent = `Precisión ±${Math.round(accuracy)}m`;
   updateNearestStop();
@@ -161,15 +270,9 @@ function setupCenterButton() {
 }
 
 // ── Draggable panel ──
-const STATES = { collapsed: 80, half: null, expanded: null };
-
 function getPanelStates() {
   const vh = window.innerHeight;
-  return {
-    collapsed: 80,
-    half: Math.round(vh * 0.45),
-    expanded: Math.round(vh * 0.88),
-  };
+  return { collapsed: 80, half: Math.round(vh * 0.45), expanded: Math.round(vh * 0.88) };
 }
 
 function expandPanel(state) {
@@ -179,11 +282,7 @@ function expandPanel(state) {
   if (state === 'collapsed') panel.classList.add('collapsed');
   else if (state === 'expanded') panel.classList.add('expanded');
   panel.style.height = states[state] + 'px';
-  updateMapPadding(states[state]);
-}
-
-function updateMapPadding(panelH) {
-  if (map) map.invalidateSize();
+  setTimeout(() => map?.invalidateSize(), 350);
 }
 
 function setupDraggablePanel() {
@@ -191,67 +290,32 @@ function setupDraggablePanel() {
   const handle = document.getElementById('panel-handle-area');
   let startY = 0, startH = 0, dragging = false;
 
-  function onStart(y) {
-    startY = y;
-    startH = panel.offsetHeight;
-    dragging = true;
-    panel.style.transition = 'none';
-  }
-
-  function onMove(y) {
-    if (!dragging) return;
-    const delta = startY - y;
-    const states = getPanelStates();
-    const newH = Math.min(states.expanded, Math.max(states.collapsed, startH + delta));
-    panel.style.height = newH + 'px';
-  }
-
-  function onEnd(y) {
+  const onStart = (y) => { startY = y; startH = panel.offsetHeight; dragging = true; panel.style.transition = 'none'; };
+  const onMove  = (y) => { if (!dragging) return; const states = getPanelStates(); const delta = startY - y; panel.style.height = Math.min(states.expanded, Math.max(states.collapsed, startH + delta)) + 'px'; };
+  const onEnd   = (y) => {
     if (!dragging) return;
     dragging = false;
     panel.style.transition = '';
     const states = getPanelStates();
     const currentH = panel.offsetHeight;
     const delta = startY - y;
-
-    let target;
-    if (currentH < (states.collapsed + states.half) / 2) target = 'collapsed';
-    else if (currentH > (states.half + states.expanded) / 2) target = 'expanded';
-    else target = 'half';
-
-    // also snap by velocity
-    if (Math.abs(delta) > 60) {
-      if (delta > 0) {
-        target = currentH > states.half ? 'expanded' : 'half';
-      } else {
-        target = currentH < states.half ? 'collapsed' : 'half';
-      }
-    }
-
+    let target = currentH < (states.collapsed + states.half) / 2 ? 'collapsed' : currentH > (states.half + states.expanded) / 2 ? 'expanded' : 'half';
+    if (Math.abs(delta) > 60) target = delta > 0 ? (currentH > states.half ? 'expanded' : 'half') : (currentH < states.half ? 'collapsed' : 'half');
     expandPanel(target);
-  }
+  };
 
-  // Touch
   handle.addEventListener('touchstart', (e) => onStart(e.touches[0].clientY), { passive: true });
   handle.addEventListener('touchmove',  (e) => onMove(e.touches[0].clientY),  { passive: true });
   handle.addEventListener('touchend',   (e) => onEnd(e.changedTouches[0].clientY));
-
-  // Mouse (desktop)
-  handle.addEventListener('mousedown', (e) => { onStart(e.clientY); e.preventDefault(); });
-  window.addEventListener('mousemove', (e) => onMove(e.clientY));
-  window.addEventListener('mouseup',   (e) => onEnd(e.clientY));
-
-  // Tap handle to toggle
+  handle.addEventListener('mousedown',  (e) => { onStart(e.clientY); e.preventDefault(); });
+  window.addEventListener('mousemove',  (e) => onMove(e.clientY));
+  window.addEventListener('mouseup',    (e) => onEnd(e.clientY));
   handle.addEventListener('click', () => {
     const states = getPanelStates();
-    const currentH = panel.offsetHeight;
-    if (currentH <= states.collapsed + 10) expandPanel('half');
-    else if (currentH >= states.expanded - 10) expandPanel('half');
-    else if (currentH < states.half) expandPanel('half');
-    else expandPanel('collapsed');
+    const h = panel.offsetHeight;
+    expandPanel(h <= states.collapsed + 10 ? 'half' : h >= states.expanded - 10 ? 'half' : h < states.half ? 'half' : 'collapsed');
   });
 
-  // Set initial height
   expandPanel('half');
 }
 
@@ -261,3 +325,4 @@ renderStopsList();
 startGeolocation();
 setupCenterButton();
 setupDraggablePanel();
+setupDownloadButton();
