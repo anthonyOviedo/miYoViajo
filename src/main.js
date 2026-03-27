@@ -10,6 +10,15 @@ delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl: markerIconUrl, iconRetinaUrl: markerIcon2xUrl, shadowUrl: markerShadowUrl });
 
 const CR_BOUNDS = L.latLngBounds([8.03, -85.95], [11.22, -82.56]);
+const LS_KEY = (i) => `miyoviajo_stops_${i}`;
+
+// ── Mutable stops (localStorage override or original) ──
+const routeStops = ROUTES.map((route, i) => {
+  try {
+    const saved = localStorage.getItem(LS_KEY(i));
+    return saved ? JSON.parse(saved) : [...route.stops];
+  } catch { return [...route.stops]; }
+});
 
 // ── State ──
 let map = null;
@@ -18,8 +27,10 @@ let saveTilesControl = null;
 let userLatLng = null;
 let userMarker = null;
 let activeRouteIdx = 0;
-let stopMarkers = [];      // { marker, routeIdx }
-let routePolylines = [];  // { casing, line }
+let stopMarkers = [];      // { marker, routeIdx, stopId }
+let routePolylines = [];   // { shadow, casing, line, routeIdx }
+let editMode = false;
+let pendingLatLng = null;
 
 // ── Map ──
 function initMap() {
