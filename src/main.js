@@ -1,6 +1,6 @@
 import L from 'leaflet';
-import { tileLayerOffline, savetiles, TileLayerOffline } from 'leaflet.offline';
-import { STOPS } from './stops.js';
+import { tileLayerOffline, savetiles } from 'leaflet.offline';
+import { ROUTES } from './stops.js';
 
 // ── Leaflet icon fix ──
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png?url';
@@ -9,222 +9,164 @@ import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png?url';
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl: markerIconUrl, iconRetinaUrl: markerIcon2xUrl, shadowUrl: markerShadowUrl });
 
-// ── Costa Rica bounds ──
 const CR_BOUNDS = L.latLngBounds([8.03, -85.95], [11.22, -82.56]);
 
 // ── State ──
-let userLatLng = null;
-let userMarker = null;
 let map = null;
 let offlineLayer = null;
 let saveTilesControl = null;
+let userLatLng = null;
+let userMarker = null;
+let activeRouteIdx = 0;
+let stopMarkers = [];   // { marker, routeIdx }
 
 // ── Map ──
 function initMap() {
   map = L.map('map', {
-    center: [9.938381, -84.0864747],
-    zoom: 12,
+    center: [10.0, -84.2],
+    zoom: 11,
     zoomControl: false,
     attributionControl: true,
-    maxBounds: CR_BOUNDS.pad(0.3),
   });
 
   offlineLayer = tileLayerOffline(
     'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    {
-      attribution: '© OpenStreetMap © CARTO',
-      subdomains: 'abcd',
-      maxZoom: 19,
-      crossOrigin: true,
-    }
+    { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19, crossOrigin: true }
   ).addTo(map);
 
   L.control.zoom({ position: 'topright' }).addTo(map);
 
   setupOfflineControl();
-  addStopMarkers();
-}
-
-// ── Offline tile download ──
-function setupOfflineControl() {
-  saveTilesControl = savetiles(offlineLayer, {
-    zoomlevels: [6, 7, 8, 9, 10, 11, 12, 13, 14],
-    maxZoom: 14,
-    bounds: CR_BOUNDS,
-    confirm(layer, successCallback) {
-      successCallback();
-    },
-    confirmRemoval(layer, successCallback) {
-      if (confirm('¿Eliminar el mapa descargado?')) successCallback();
-    },
-    saveText: '',
-    rmText: '',
-  });
-
-  // hook into events for our custom UI
-  offlineLayer.on('savestart', (e) => {
-    updateDownloadUI('downloading', 0, e._tilesforSave?.length || 0);
-  });
-
-  offlineLayer.on('savetileend', (e) => {
-    const saved = e._tilestoSave - (e._tilesforSave?.length || 0);
-    updateDownloadUI('downloading', saved, e._tilestoSave);
-  });
-
-  offlineLayer.on('loadend', () => {
-    updateDownloadUI('done');
-    checkOfflineStatus();
-  });
-
-  offlineLayer.on('tilesremoved', () => {
-    updateDownloadUI('idle');
-    checkOfflineStatus();
-  });
-
-  checkOfflineStatus();
-}
-
-function checkOfflineStatus() {
-  // Check if we have cached tiles
-  const btn = document.getElementById('download-btn');
-  if (!btn) return;
-  const statusEl = document.getElementById('offline-status');
-
-  // Use the storageInfo to check
-  if (offlineLayer.getTileUrls) {
-    const urls = offlineLayer.getTileUrls(CR_BOUNDS, 6, 14);
-    if (statusEl) statusEl.textContent = `${urls.length} tiles para Costa Rica`;
-  }
-}
-
-function updateDownloadUI(state, saved = 0, total = 0) {
-  const btn = document.getElementById('download-btn');
-  const progress = document.getElementById('download-progress');
-  const label = document.getElementById('download-label');
-  if (!btn) return;
-
-  if (state === 'downloading') {
-    btn.disabled = true;
-    btn.classList.add('downloading');
-    btn.innerHTML = '⬇ Descargando...';
-    if (progress) {
-      progress.style.display = 'block';
-      const pct = total > 0 ? Math.round((saved / total) * 100) : 0;
-      const fill = document.getElementById('download-fill');
-      if (fill) fill.style.width = pct + '%';
-      if (label) label.textContent = `${saved} / ${total} tiles (${pct}%)`;
-    }
-  } else if (state === 'done') {
-    btn.disabled = false;
-    btn.classList.remove('downloading');
-    btn.classList.add('saved');
-    btn.innerHTML = '✓ Mapa guardado';
-    if (progress) progress.style.display = 'none';
-    if (label) label.textContent = 'Disponible sin conexión';
-  } else {
-    btn.disabled = false;
-    btn.classList.remove('downloading', 'saved');
-    btn.innerHTML = '⬇ Descargar mapa';
-    if (progress) progress.style.display = 'none';
-  }
-}
-
-function setupDownloadButton() {
-  const btn = document.getElementById('download-btn');
-  if (!btn) return;
-  btn.addEventListener('click', () => {
-    if (btn.classList.contains('saved')) {
-      // Remove cached tiles
-      saveTilesControl._rmTiles();
-    } else {
-      // Download Costa Rica tiles
-      map.fitBounds(CR_BOUNDS);
-      setTimeout(() => {
-        saveTilesControl._saveTiles();
-      }, 400);
-    }
-  });
+  addAllStopMarkers();
+  fitRoute(activeRouteIdx);
 }
 
 // ── Stop markers ──
-function addStopMarkers() {
-  STOPS.forEach((stop) => {
-    const isTerminal = stop.starts || stop.ends;
-    const icon = L.divIcon({
-      className: 'bus-marker',
-      html: `<div class="stop-marker-dot ${isTerminal ? 'terminal-dot' : ''}"></div>`,
-      iconSize: isTerminal ? [14, 14] : [10, 10],
-      iconAnchor: isTerminal ? [7, 7] : [5, 5],
-    });
-    L.marker([stop.lat, stop.lng], { icon })
-      .addTo(map)
-      .bindPopup(`
-        <div class="popup-title">${stop.title}</div>
-        <div class="popup-sub">${stop.address}</div>
-        <div class="popup-time">+${stop.time} desde San José</div>
-      `, { maxWidth: 220 })
-      .on('click', () => highlightStop(stop.id));
-  });
-}
-
-// ── Geolocation ──
-function createUserMarker(latlng) {
-  const icon = L.divIcon({
+function makeStopIcon(color, isTerminal) {
+  const size = isTerminal ? 14 : 10;
+  return L.divIcon({
     className: 'bus-marker',
-    html: `<div class="user-marker-inner"></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+    html: `<div class="stop-marker-dot" style="
+      width:${size}px;height:${size}px;border-radius:50%;
+      background:${isTerminal ? color : '#fff'};
+      border:2.5px solid ${color};
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    "></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
-  return L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map);
 }
 
-function updateLocation(pos) {
-  const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-  userLatLng = L.latLng(lat, lng);
-  if (!userMarker) userMarker = createUserMarker(userLatLng);
-  else userMarker.setLatLng(userLatLng);
-  document.getElementById('location-dot').classList.add('active');
-  document.getElementById('location-text').textContent = `Precisión ±${Math.round(accuracy)}m`;
+function addAllStopMarkers() {
+  ROUTES.forEach((route, routeIdx) => {
+    route.stops.forEach((stop) => {
+      const isTerminal = stop.starts || stop.ends;
+      const icon = makeStopIcon(route.color, isTerminal);
+      const marker = L.marker([stop.lat, stop.lng], { icon })
+        .addTo(map)
+        .bindPopup(`
+          <div class="popup-route" style="background:${route.color}20;border-left:3px solid ${route.color};padding:4px 8px;border-radius:4px;margin-bottom:6px;font-size:0.72rem;font-weight:600;color:${route.color}">${route.short}</div>
+          <div class="popup-title">${stop.title}</div>
+          <div class="popup-sub">${stop.address}</div>
+          <div class="popup-time">+${stop.time} desde ${stop.starts ? 'inicio' : route.stops.find(s => s.starts)?.title || 'inicio'}</div>
+        `, { maxWidth: 230 })
+        .on('click', () => {
+          setActiveRoute(routeIdx);
+          highlightStop(stop.id);
+        });
+
+      stopMarkers.push({ marker, routeIdx, stop });
+    });
+  });
+
+  updateMarkersVisibility();
+}
+
+function updateMarkersVisibility() {
+  stopMarkers.forEach(({ marker, routeIdx }) => {
+    const el = marker.getElement();
+    if (!el) return;
+    el.style.opacity = routeIdx === activeRouteIdx ? '1' : '0.25';
+    el.style.pointerEvents = routeIdx === activeRouteIdx ? 'auto' : 'none';
+  });
+}
+
+function fitRoute(routeIdx) {
+  const route = ROUTES[routeIdx];
+  const bounds = L.latLngBounds(route.stops.map(s => [s.lat, s.lng]));
+  map.fitBounds(bounds, { padding: [40, 40] });
+}
+
+// ── Route tabs ──
+function renderRouteTabs() {
+  const container = document.getElementById('route-tabs');
+  ROUTES.forEach((route, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'route-tab' + (idx === activeRouteIdx ? ' active' : '');
+    btn.textContent = route.short;
+    btn.style.setProperty('--tab-color', route.color);
+    btn.addEventListener('click', () => setActiveRoute(idx));
+    container.appendChild(btn);
+  });
+}
+
+function setActiveRoute(idx) {
+  if (idx === activeRouteIdx) return;
+  activeRouteIdx = idx;
+
+  // Update tabs
+  document.querySelectorAll('.route-tab').forEach((btn, i) => {
+    btn.classList.toggle('active', i === idx);
+  });
+
+  updateMarkersVisibility();
+  renderStopsList();
+  renderScheduleChips();
   updateNearestStop();
+  fitRoute(idx);
 }
 
-function startGeolocation() {
-  if (!navigator.geolocation) {
-    document.getElementById('location-text').textContent = 'GPS no disponible';
+// ── Schedule chips ──
+function renderScheduleChips() {
+  const container = document.getElementById('schedule-chips');
+  container.innerHTML = '';
+  const route = ROUTES[activeRouteIdx];
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const day = now.getDay(); // 0=sun,6=sat
+  const key = day === 0 ? 'domingo' : day === 6 ? 'sabado' : 'semana';
+  const times = route.schedule[key] || route.schedule.semana;
+
+  // Convert HH:MM to minutes
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+  // Find next 4 departures
+  const upcoming = times.filter(t => toMin(t) >= currentMinutes).slice(0, 4);
+  const past = times.filter(t => toMin(t) < currentMinutes).slice(-1);
+  const show = [...past, ...upcoming].slice(0, 4);
+
+  if (show.length === 0) {
+    container.innerHTML = '<span style="font-size:0.78rem;color:var(--text-muted)">No hay más salidas hoy</span>';
     return;
   }
-  navigator.geolocation.watchPosition(updateLocation, () => {
-    document.getElementById('location-text').textContent = 'No se pudo obtener ubicación';
-  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 });
-}
 
-// ── Nearest stop ──
-function haversine(lat1, lng1, lat2, lng2) {
-  const R = 6371e3;
-  const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180, Δλ = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function updateNearestStop() {
-  if (!userLatLng) return;
-  let nearest = null, minDist = Infinity;
-  STOPS.forEach((s) => {
-    const d = haversine(userLatLng.lat, userLatLng.lng, s.lat, s.lng);
-    if (d < minDist) { minDist = d; nearest = s; }
+  show.forEach((time, i) => {
+    const chip = document.createElement('div');
+    const isNext = i === (past.length > 0 ? 1 : 0);
+    chip.className = 'schedule-chip' + (isNext ? ' next' : '');
+    chip.style.setProperty('--chip-color', ROUTES[activeRouteIdx].color);
+    chip.textContent = time;
+    container.appendChild(chip);
   });
-  if (!nearest) return;
-  const distText = minDist < 1000 ? `${Math.round(minDist)} m` : `${(minDist / 1000).toFixed(1)} km`;
-  document.getElementById('next-stop-name').textContent = nearest.title;
-  document.getElementById('next-stop-dist').textContent = distText + ' de distancia';
-  highlightStop(nearest.id);
 }
 
 // ── Stops list ──
 function renderStopsList() {
   const container = document.getElementById('stops-items');
-  const sorted = [...STOPS].sort((a, b) => a.time.localeCompare(b.time));
+  container.innerHTML = '';
+  const route = ROUTES[activeRouteIdx];
+  const sorted = [...route.stops].sort((a, b) => a.time.localeCompare(b.time));
+
   sorted.forEach((stop, idx) => {
     const isTerminal = stop.starts || stop.ends;
     const isLast = idx === sorted.length - 1;
@@ -233,7 +175,7 @@ function renderStopsList() {
     item.dataset.id = stop.id;
     item.innerHTML = `
       <div class="stop-timeline">
-        <div class="stop-dot ${isTerminal ? 'terminal' : ''}"></div>
+        <div class="stop-dot ${isTerminal ? 'terminal' : ''}" style="${isTerminal ? `--dot-color:${route.color}` : ''}"></div>
         ${!isLast ? '<div class="stop-line"></div>' : ''}
       </div>
       <div class="stop-info">
@@ -251,8 +193,8 @@ function renderStopsList() {
 }
 
 function highlightStop(id) {
-  document.querySelectorAll('.stop-item').forEach((el) => el.classList.remove('highlighted'));
-  document.querySelectorAll('.stop-dot').forEach((el) => el.classList.remove('nearest'));
+  document.querySelectorAll('.stop-item').forEach(el => el.classList.remove('highlighted'));
+  document.querySelectorAll('.stop-dot').forEach(el => el.classList.remove('nearest'));
   const item = document.querySelector(`.stop-item[data-id="${id}"]`);
   if (item) {
     item.classList.add('highlighted');
@@ -261,11 +203,109 @@ function highlightStop(id) {
   }
 }
 
+// ── Geolocation ──
+function createUserMarker(latlng) {
+  const icon = L.divIcon({
+    className: 'bus-marker',
+    html: `<div class="user-marker-inner"></div>`,
+    iconSize: [18, 18], iconAnchor: [9, 9],
+  });
+  return L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map);
+}
+
+function updateLocation(pos) {
+  const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+  userLatLng = L.latLng(lat, lng);
+  if (!userMarker) userMarker = createUserMarker(userLatLng);
+  else userMarker.setLatLng(userLatLng);
+  document.getElementById('location-dot').classList.add('active');
+  document.getElementById('location-text').textContent = `Precisión ±${Math.round(accuracy)}m`;
+  updateNearestStop();
+}
+
+function startGeolocation() {
+  if (!navigator.geolocation) { document.getElementById('location-text').textContent = 'GPS no disponible'; return; }
+  navigator.geolocation.watchPosition(updateLocation, () => {
+    document.getElementById('location-text').textContent = 'No se pudo obtener ubicación';
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 });
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371e3;
+  const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180, Δλ = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function updateNearestStop() {
+  if (!userLatLng) return;
+  const route = ROUTES[activeRouteIdx];
+  let nearest = null, minDist = Infinity;
+  route.stops.forEach((s) => {
+    const d = haversine(userLatLng.lat, userLatLng.lng, s.lat, s.lng);
+    if (d < minDist) { minDist = d; nearest = s; }
+  });
+  if (!nearest) return;
+  const distText = minDist < 1000 ? `${Math.round(minDist)} m` : `${(minDist / 1000).toFixed(1)} km`;
+  document.getElementById('next-stop-name').textContent = nearest.title;
+  document.getElementById('next-stop-dist').textContent = distText + ' de distancia';
+  highlightStop(nearest.id);
+}
+
+// ── Offline ──
+function setupOfflineControl() {
+  saveTilesControl = savetiles(offlineLayer, {
+    zoomlevels: [6, 7, 8, 9, 10, 11, 12, 13, 14],
+    maxZoom: 14,
+    bounds: CR_BOUNDS,
+    confirm(layer, cb) { cb(); },
+    confirmRemoval(layer, cb) { if (confirm('¿Eliminar el mapa descargado?')) cb(); },
+  });
+
+  offlineLayer.on('savestart', (e) => updateDownloadUI('downloading', 0, e._tilesforSave?.length || 0));
+  offlineLayer.on('savetileend', (e) => updateDownloadUI('downloading', e._tilestoSave - (e._tilesforSave?.length || 0), e._tilestoSave));
+  offlineLayer.on('loadend', () => { updateDownloadUI('done'); });
+  offlineLayer.on('tilesremoved', () => updateDownloadUI('idle'));
+}
+
+function updateDownloadUI(state, saved = 0, total = 0) {
+  const btn = document.getElementById('download-btn');
+  const progress = document.getElementById('download-progress');
+  const fill = document.getElementById('download-fill');
+  const label = document.getElementById('download-label');
+  if (!btn) return;
+
+  if (state === 'downloading') {
+    btn.disabled = true;
+    btn.innerHTML = '⬇ Descargando...';
+    if (progress) { progress.style.display = 'block'; const pct = total > 0 ? Math.round((saved / total) * 100) : 0; if (fill) fill.style.width = pct + '%'; if (label) label.textContent = `${saved} / ${total} tiles (${pct}%)`; }
+  } else if (state === 'done') {
+    btn.disabled = false;
+    btn.className = 'saved';
+    btn.innerHTML = '✓ Mapa guardado';
+    if (progress) progress.style.display = 'none';
+  } else {
+    btn.disabled = false;
+    btn.className = '';
+    btn.innerHTML = '⬇ Descargar mapa';
+    if (progress) progress.style.display = 'none';
+  }
+}
+
+function setupDownloadButton() {
+  document.getElementById('download-btn').addEventListener('click', () => {
+    const btn = document.getElementById('download-btn');
+    if (btn.classList.contains('saved')) { saveTilesControl._rmTiles(); }
+    else { map.fitBounds(CR_BOUNDS); setTimeout(() => saveTilesControl._saveTiles(), 400); }
+  });
+}
+
 // ── Center button ──
 function setupCenterButton() {
   document.getElementById('center-btn').addEventListener('click', () => {
     if (userLatLng) map.setView(userLatLng, 15, { animate: true });
-    else map.setView([9.938381, -84.0864747], 12, { animate: true });
+    else fitRoute(activeRouteIdx);
   });
 }
 
@@ -291,16 +331,16 @@ function setupDraggablePanel() {
   let startY = 0, startH = 0, dragging = false;
 
   const onStart = (y) => { startY = y; startH = panel.offsetHeight; dragging = true; panel.style.transition = 'none'; };
-  const onMove  = (y) => { if (!dragging) return; const states = getPanelStates(); const delta = startY - y; panel.style.height = Math.min(states.expanded, Math.max(states.collapsed, startH + delta)) + 'px'; };
+  const onMove  = (y) => { if (!dragging) return; const s = getPanelStates(); panel.style.height = Math.min(s.expanded, Math.max(s.collapsed, startH + (startY - y))) + 'px'; };
   const onEnd   = (y) => {
     if (!dragging) return;
     dragging = false;
     panel.style.transition = '';
-    const states = getPanelStates();
-    const currentH = panel.offsetHeight;
+    const s = getPanelStates();
+    const h = panel.offsetHeight;
     const delta = startY - y;
-    let target = currentH < (states.collapsed + states.half) / 2 ? 'collapsed' : currentH > (states.half + states.expanded) / 2 ? 'expanded' : 'half';
-    if (Math.abs(delta) > 60) target = delta > 0 ? (currentH > states.half ? 'expanded' : 'half') : (currentH < states.half ? 'collapsed' : 'half');
+    let target = h < (s.collapsed + s.half) / 2 ? 'collapsed' : h > (s.half + s.expanded) / 2 ? 'expanded' : 'half';
+    if (Math.abs(delta) > 60) target = delta > 0 ? (h > s.half ? 'expanded' : 'half') : (h < s.half ? 'collapsed' : 'half');
     expandPanel(target);
   };
 
@@ -311,9 +351,8 @@ function setupDraggablePanel() {
   window.addEventListener('mousemove',  (e) => onMove(e.clientY));
   window.addEventListener('mouseup',    (e) => onEnd(e.clientY));
   handle.addEventListener('click', () => {
-    const states = getPanelStates();
-    const h = panel.offsetHeight;
-    expandPanel(h <= states.collapsed + 10 ? 'half' : h >= states.expanded - 10 ? 'half' : h < states.half ? 'half' : 'collapsed');
+    const s = getPanelStates(); const h = panel.offsetHeight;
+    expandPanel(h <= s.collapsed + 10 ? 'half' : h >= s.expanded - 10 ? 'half' : h < s.half ? 'half' : 'collapsed');
   });
 
   expandPanel('half');
@@ -321,7 +360,9 @@ function setupDraggablePanel() {
 
 // ── Boot ──
 initMap();
+renderRouteTabs();
 renderStopsList();
+renderScheduleChips();
 startGeolocation();
 setupCenterButton();
 setupDraggablePanel();

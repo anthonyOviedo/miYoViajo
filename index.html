@@ -17,7 +17,7 @@
         <span class="bus-icon">🚌</span>
         <span>MiYoViajo</span>
       </div>
-      <div id="route-badge">San José – Grecia</div>
+      <div id="route-tabs"></div>
     </header>
 
     <div id="map"></div>
@@ -41,7 +41,6 @@
           </button>
         </div>
 
-        <!-- Offline map download -->
         <div id="offline-section">
           <button id="download-btn">⬇ Descargar mapa</button>
           <div id="download-progress" style="display:none">
@@ -56,8 +55,13 @@
           <div id="next-stop-dist">—</div>
         </div>
 
+        <div id="schedule-section">
+          <div class="section-label">Próximos horarios</div>
+          <div id="schedule-chips"></div>
+        </div>
+
         <div id="stops-list">
-          <div class="section-label">Todas las paradas</div>
+          <div class="section-label">Paradas</div>
           <div id="stops-items"></div>
         </div>
       </div>

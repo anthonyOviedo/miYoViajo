@@ -212,6 +212,55 @@ html, body {
   font-weight: 600;
 }
 
+/* ── Route tabs ── */
+#route-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.route-tab {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--tab-color, var(--primary));
+  background: #fff;
+  color: var(--tab-color, var(--primary));
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.route-tab.active {
+  background: var(--tab-color, var(--primary));
+  color: #fff;
+}
+.route-tab:active { opacity: 0.8; }
+
+/* ── Schedule chips ── */
+#schedule-section { margin-bottom: 16px; }
+
+#schedule-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.schedule-chip {
+  padding: 5px 12px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.schedule-chip.next {
+  background: var(--chip-color, var(--primary));
+  color: #fff;
+  border-color: transparent;
+}
+
 /* ── Offline download ── */
 #offline-section {
   margin-bottom: 16px;
@@ -288,7 +337,7 @@ html, body {
   flex-shrink: 0;
   transition: all 0.25s;
 }
-.stop-dot.terminal { border-color: var(--primary); background: var(--primary); }
+.stop-dot.terminal { border-color: var(--dot-color, var(--primary)); background: var(--dot-color, var(--primary)); }
 .stop-dot.nearest  { border-color: var(--bus-color); background: var(--bus-color); box-shadow: 0 0 6px rgba(245,158,11,0.5); }
 
 .stop-line {

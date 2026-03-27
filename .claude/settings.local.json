@@ -18,7 +18,16 @@
       "Bash(git branch:*)",
       "Bash(git remote:*)",
       "Bash(git push:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(for url:*)",
+      "Bash(do echo:*)",
+      "Bash(curl -s -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" -H \"Accept: text/html\" -H \"Accept-Language: es-CR,es;q=0.9\" --compressed -L \"https://yoviajocr.com/buses\")",
+      "Bash(curl -s -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" -H \"Accept: text/html\" -H \"Accept-Language: es-CR,es;q=0.9\" --compressed -L \"https://yoviajocr.com/bus/grecia-san-jose\")",
+      "Bash(python3:*)",
+      "Bash(curl -s -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" -H \"Accept: text/html\" -H \"Accept-Language: es-CR,es;q=0.9\" --compressed -L \"https://yoviajocr.com/bus/grecia-san-jose\" -o /tmp/grecia-sj.html)",
+      "Bash(__NEW_LINE_e240164d253ea256__ curl:*)",
+      "Bash(__NEW_LINE_e240164d253ea256__ echo:*)",
+      "Read(//tmp/**)"
     ]
   }
 }
