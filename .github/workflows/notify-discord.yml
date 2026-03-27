@@ -14,10 +14,8 @@ jobs:
           AUTHOR="${{ github.event.head_commit.author.name }}"
           SHORT_SHA="${{ github.sha }}"
           SHORT_SHA="${SHORT_SHA:0:7}"
-          REPO="${{ github.repository }}"
-          RUN_URL="https://github.com/$REPO/actions/runs/${{ github.run_id }}"
 
-          curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.DISCORD_WH }}" \
+          curl -s -X POST "${{ secrets.DISCORD_WH }}" \
             -H "Content-Type: application/json" \
             -d "{
               \"embeds\": [{
@@ -33,3 +31,63 @@ jobs:
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
               }]
             }"
+
+  health-check:
+    runs-on: ubuntu-latest
+    needs: notify
+    steps:
+      - name: Wait for Netlify deploy
+        run: sleep 60
+
+      - name: Health check
+        id: check
+        run: |
+          URL="https://miyoviajo.netlify.app"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$URL")
+          RESPONSE_TIME=$(curl -s -o /dev/null -w "%{time_total}" --max-time 15 "$URL")
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "response_time=$RESPONSE_TIME" >> $GITHUB_OUTPUT
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Notify Discord – Health OK
+        if: steps.check.outputs.status == '200'
+        run: |
+          curl -s -X POST "${{ secrets.DISCORD_WH }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"✅ MiYoViajo — App saludable\",
+                \"description\": \"El sitio responde correctamente tras el deploy.\",
+                \"color\": 3066993,
+                \"fields\": [
+                  { \"name\": \"🌐 URL\", \"value\": \"${{ steps.check.outputs.url }}\", \"inline\": false },
+                  { \"name\": \"📶 HTTP\", \"value\": \"\`${{ steps.check.outputs.status }}\`\", \"inline\": true },
+                  { \"name\": \"⚡ Respuesta\", \"value\": \"${{ steps.check.outputs.response_time }}s\", \"inline\": true }
+                ],
+                \"footer\": { \"text\": \"Health Check\" },
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }"
+
+      - name: Notify Discord – Health FAIL
+        if: steps.check.outputs.status != '200'
+        run: |
+          curl -s -X POST "${{ secrets.DISCORD_WH }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"❌ MiYoViajo — App caída\",
+                \"description\": \"El sitio no responde correctamente. Revisar en Netlify.\",
+                \"color\": 15158332,
+                \"fields\": [
+                  { \"name\": \"🌐 URL\", \"value\": \"${{ steps.check.outputs.url }}\", \"inline\": false },
+                  { \"name\": \"📶 HTTP\", \"value\": \"\`${{ steps.check.outputs.status }}\`\", \"inline\": true }
+                ],
+                \"footer\": { \"text\": \"Health Check\" },
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }"
+
+      - name: Fail workflow if unhealthy
+        if: steps.check.outputs.status != '200'
+        run: exit 1
