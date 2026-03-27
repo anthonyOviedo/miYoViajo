@@ -340,6 +340,7 @@ function updateLocation(pos) {
   document.getElementById('location-dot').classList.add('active');
   document.getElementById('location-text').textContent = `Precisión ±${Math.round(accuracy)}m`;
   updateNearestStop();
+  checkStopProximity();
 }
 
 function startGeolocation() {
