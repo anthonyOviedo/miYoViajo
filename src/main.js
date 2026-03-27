@@ -49,33 +49,60 @@ function initMap() {
   fitRoute(activeRouteIdx);
 }
 
-// ── Route polylines (Waze style: shadow + casing + line) ──
-function drawRoutePolylines() {
-  ROUTES.forEach((route, routeIdx) => {
-    const sorted = [...route.stops].sort((a, b) => a.time.localeCompare(b.time));
-    const coords = sorted.map(s => [s.lat, s.lng]);
+// ── Route polylines (Waze style: real road geometry via OSRM) ──
+function drawPolylineForRoute(routeIdx, coords) {
+  const route = ROUTES[routeIdx];
 
-    const shadow = L.polyline(coords, {
-      pane: 'routeShadow',
-      color: 'rgba(0,0,0,0.22)', weight: 18,
-      lineCap: 'round', lineJoin: 'round',
-    }).addTo(map);
+  const shadow = L.polyline(coords, {
+    pane: 'routeShadow',
+    color: 'rgba(0,0,0,0.22)', weight: 18,
+    lineCap: 'round', lineJoin: 'round',
+  }).addTo(map);
 
-    const casing = L.polyline(coords, {
-      pane: 'routeCasing',
-      color: '#fff', weight: 13, opacity: 1,
-      lineCap: 'round', lineJoin: 'round',
-    }).addTo(map);
+  const casing = L.polyline(coords, {
+    pane: 'routeCasing',
+    color: '#fff', weight: 13, opacity: 1,
+    lineCap: 'round', lineJoin: 'round',
+  }).addTo(map);
 
-    const line = L.polyline(coords, {
-      pane: 'routeLine',
-      color: route.color, weight: 8, opacity: 0.95,
-      lineCap: 'round', lineJoin: 'round',
-    }).addTo(map);
+  const line = L.polyline(coords, {
+    pane: 'routeLine',
+    color: route.color, weight: 8, opacity: 0.95,
+    lineCap: 'round', lineJoin: 'round',
+  }).addTo(map);
 
-    routePolylines.push({ shadow, casing, line, routeIdx });
-  });
+  routePolylines.push({ shadow, casing, line, routeIdx });
   updatePolylinesVisibility();
+}
+
+async function fetchOSRM(stops) {
+  // Use every 4th stop as waypoint + first + last to follow bus path without overloading URL
+  const sorted = [...stops].sort((a, b) => a.time.localeCompare(b.time));
+  const waypoints = sorted.filter((_, i) => i === 0 || i === sorted.length - 1 || i % 4 === 0);
+  const coordStr = waypoints.map(s => `${s.lng},${s.lat}`).join(';');
+  const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
+  const resp = await fetch(url);
+  const data = await resp.json();
+  if (data.routes?.[0]) {
+    return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+  }
+  return null;
+}
+
+async function drawRoutePolylines() {
+  for (let routeIdx = 0; routeIdx < ROUTES.length; routeIdx++) {
+    const route = ROUTES[routeIdx];
+    const fallback = [...route.stops]
+      .sort((a, b) => a.time.localeCompare(b.time))
+      .map(s => [s.lat, s.lng]);
+
+    try {
+      const coords = await fetchOSRM(route.stops);
+      drawPolylineForRoute(routeIdx, coords || fallback);
+    } catch {
+      drawPolylineForRoute(routeIdx, fallback);
+    }
+  }
 }
 
 function updatePolylinesVisibility() {
