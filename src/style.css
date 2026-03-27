@@ -311,80 +311,39 @@ html, body {
   color: var(--text-muted);
 }
 
-/* ── Stops list ── */
+/* ── Stops dropdown ── */
 #stops-list { padding-bottom: 8px; }
 
-.stop-item {
+.stops-select-wrapper {
+  position: relative;
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 9px 6px;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  border-radius: 8px;
-  transition: background 0.12s;
-}
-.stop-item:active { background: var(--surface2); }
-.stop-item.highlighted { background: rgba(245,158,11,0.08); }
-
-.stop-timeline {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  flex-shrink: 0;
-  width: 22px;
-  margin-top: 3px;
+  margin-top: 6px;
 }
 
-.stop-dot {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid #d1d5db;
-  flex-shrink: 0;
-  transition: all 0.25s;
-}
-.stop-dot.terminal { border-color: var(--dot-color, var(--primary)); background: var(--dot-color, var(--primary)); }
-.stop-dot.nearest  { border-color: var(--bus-color); background: var(--bus-color); box-shadow: 0 0 6px rgba(245,158,11,0.5); }
-
-.stop-line {
-  width: 2px;
-  height: 26px;
-  background: var(--border);
-  margin-top: 2px;
-}
-
-.stop-info { flex: 1; min-width: 0; }
-
-.stop-name {
-  font-size: 0.87rem;
+#stops-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 36px 10px 14px;
+  font-size: 0.85rem;
   font-weight: 500;
   color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
 }
+#stops-select:focus { border-color: var(--primary); }
 
-.stop-meta {
-  font-size: 0.71rem;
+.stops-arrow {
+  position: absolute;
+  right: 12px;
+  font-size: 0.7rem;
   color: var(--text-muted);
-  margin-top: 1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.stop-time-badge {
-  flex-shrink: 0;
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  padding: 2px 7px;
-  border-radius: 8px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  margin-top: 2px;
+  pointer-events: none;
 }
 
 /* ── Markers ── */
