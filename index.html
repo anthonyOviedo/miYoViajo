@@ -36,6 +36,45 @@
       </button>
     </header>
 
+    <!-- Record bar -->
+    <div id="record-bar" class="hidden">
+      <span class="record-dot"></span>
+      <span id="record-bar-count">0 / 0 paradas</span>
+      <button id="record-stop-btn">Finalizar</button>
+    </div>
+
+    <!-- Track start modal -->
+    <div id="track-start-modal" class="hidden">
+      <div class="edit-modal-box">
+        <div class="edit-modal-title">Registrar horario</div>
+        <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:6px">¿A qué hora salió el bus?</label>
+        <select id="track-dep-select" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:0.9rem;background:var(--surface2);margin-bottom:14px;outline:none"></select>
+        <div class="edit-modal-actions">
+          <button id="track-start-cancel">Cancelar</button>
+          <button id="track-start-confirm">Iniciar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Track summary modal -->
+    <div id="track-summary-modal" class="hidden">
+      <div class="edit-modal-box" style="max-width:420px;max-height:80vh;overflow-y:auto">
+        <div class="edit-modal-title">Resumen de ruta</div>
+        <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px">Salida <strong id="summary-dep"></strong> · <strong id="summary-count"></strong> paradas registradas</div>
+        <table id="summary-table">
+          <thead><tr><th>Parada</th><th>Prog.</th><th>Real</th><th>Dif.</th></tr></thead>
+          <tbody id="summary-rows"></tbody>
+        </table>
+        <div class="edit-modal-actions" style="margin-top:16px">
+          <button id="summary-close">Cerrar</button>
+          <button id="summary-send">Enviar a Discord</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Record toast -->
+    <div id="record-toast"></div>
+
     <!-- Edit mode bar -->
     <div id="edit-bar" class="hidden">
       <span id="edit-bar-label">✏️ Toca el mapa para agregar parada</span>
