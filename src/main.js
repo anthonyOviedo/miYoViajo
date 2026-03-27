@@ -20,6 +20,8 @@ const routeStops = ROUTES.map((route, i) => {
   } catch { return [...route.stops]; }
 });
 
+const DISCORD_WEBHOOK = import.meta.env.VITE_DISCORD_WEBHOOK;
+
 // ── State ──
 let map = null;
 let offlineLayer = null;
@@ -33,6 +35,9 @@ let routeGeometries = [];  // lat/lng arrays from OSRM per route
 let busMarkers = [];       // live bus markers
 let editMode = false;
 let pendingLatLng = null;
+let trackingSession = null;  // active recording session
+let lastSession = null;      // kept for summary after stopping
+let wakeLock = null;
 
 // ── Map ──
 function initMap() {
