@@ -35,6 +35,12 @@ function initMap() {
     { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19, crossOrigin: true }
   ).addTo(map);
 
+  // Custom panes for proper z-ordering (shadow → casing → route → stops)
+  map.createPane('routeShadow').style.zIndex = 390;
+  map.createPane('routeCasing').style.zIndex = 395;
+  map.createPane('routeLine').style.zIndex  = 400;
+  map.createPane('stopDots').style.zIndex   = 410;
+
   L.control.zoom({ position: 'topright' }).addTo(map);
 
   setupOfflineControl();
