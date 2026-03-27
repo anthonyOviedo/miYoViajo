@@ -1,0 +1,137 @@
+name: Deploy Manual
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Destino del deploy"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - both
+          - netlify
+          - cloudflare
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  deploy-netlify:
+    runs-on: ubuntu-latest
+    needs: build
+    if: ${{ inputs.target == 'both' || inputs.target == 'netlify' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Deploy to Netlify
+        run: npx netlify-cli deploy --prod --dir=dist
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+  deploy-cloudflare:
+    runs-on: ubuntu-latest
+    needs: build
+    if: ${{ inputs.target == 'both' || inputs.target == 'cloudflare' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Deploy to Cloudflare Workers
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy-netlify, deploy-cloudflare]
+    if: always()
+    steps:
+      - name: Notify Discord
+        run: |
+          NL_STATUS="${{ needs.deploy-netlify.result }}"
+          CF_STATUS="${{ needs.deploy-cloudflare.result }}"
+          TARGET="${{ inputs.target }}"
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          ACTOR="${{ github.actor }}"
+
+          status_icon() {
+            case "$1" in
+              success) echo "✅" ;;
+              failure) echo "❌" ;;
+              skipped) echo "⏭️" ;;
+              *) echo "⚠️" ;;
+            esac
+          }
+
+          if [ "$NL_STATUS" = "success" ] && [ "$CF_STATUS" = "success" ]; then
+            COLOR=3066993
+            TITLE="✅ MiYoViajo — Deploy exitoso"
+          elif [ "$NL_STATUS" = "failure" ] || [ "$CF_STATUS" = "failure" ]; then
+            COLOR=15158332
+            TITLE="❌ MiYoViajo — Deploy con errores"
+          else
+            COLOR=3066993
+            TITLE="✅ MiYoViajo — Deploy completado"
+          fi
+
+          NL_ICON=$(status_icon "$NL_STATUS")
+          CF_ICON=$(status_icon "$CF_STATUS")
+
+          curl -s -X POST "${{ secrets.DISCORD_WH }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  { \"name\": \"🎯 Destino\", \"value\": \"\`$TARGET\`\", \"inline\": true },
+                  { \"name\": \"👤 Disparado por\", \"value\": \"$ACTOR\", \"inline\": true },
+                  { \"name\": \"🔖 Commit\", \"value\": \"\`$SHORT_SHA\`\", \"inline\": true },
+                  { \"name\": \"$NL_ICON Netlify\", \"value\": \"\`$NL_STATUS\` — https://miyoviajo.netlify.app\", \"inline\": false },
+                  { \"name\": \"$CF_ICON Cloudflare\", \"value\": \"\`$CF_STATUS\` — https://miyoviajo.antony-08.workers.dev\", \"inline\": false }
+                ],
+                \"footer\": { \"text\": \"Deploy Manual · GitHub Actions\" },
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }"
