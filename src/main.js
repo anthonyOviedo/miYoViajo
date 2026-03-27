@@ -76,10 +76,12 @@ function drawPolylineForRoute(routeIdx, coords) {
 }
 
 async function fetchOSRM(stops) {
-  // Use every 4th stop as waypoint + first + last to follow bus path without overloading URL
-  const sorted = [...stops].sort((a, b) => a.time.localeCompare(b.time));
-  const waypoints = sorted.filter((_, i) => i === 0 || i === sorted.length - 1 || i % 4 === 0);
-  const coordStr = waypoints.map(s => `${s.lng},${s.lat}`).join(';');
+  // Use only terminal stops (starts/ends) to avoid zigzags from mixed route variants
+  const origin  = stops.find(s => s.starts);
+  const dest    = stops.find(s => s.ends);
+  if (!origin || !dest) return null;
+
+  const coordStr = `${origin.lng},${origin.lat};${dest.lng},${dest.lat}`;
   const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
   const resp = await fetch(url);
   const data = await resp.json();
