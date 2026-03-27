@@ -478,7 +478,25 @@ function setupDraggablePanel() {
 }
 
 // ── Live buses ──
-const ROUTE_DURATION_MIN = 90;
+function parseDurationMin(dur) {
+  const h = dur.match(/(\d+)h/);
+  const m = dur.match(/(\d+)min/);
+  return (h ? parseInt(h[1]) * 60 : 0) + (m ? parseInt(m[1]) : 0);
+}
+
+function minToHHMM(min) {
+  const h = Math.floor(min / 60) % 24;
+  const m = Math.floor(min % 60);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function nearestStopAtElapsed(routeIdx, elapsedMin) {
+  const stops = routeStops[routeIdx];
+  return stops.reduce((best, s) => {
+    const diff = Math.abs(toMin(s.time) - elapsedMin);
+    return diff < best.diff ? { stop: s, diff } : best;
+  }, { stop: stops[0], diff: Infinity }).stop;
+}
 
 function toMin(t) {
   const [h, m] = t.split(':').map(Number);
