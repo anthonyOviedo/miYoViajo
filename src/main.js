@@ -49,30 +49,41 @@ function initMap() {
   fitRoute(activeRouteIdx);
 }
 
-// ── Route polylines (Waze style) ──
+// ── Route polylines (Waze style: shadow + casing + line) ──
 function drawRoutePolylines() {
   ROUTES.forEach((route, routeIdx) => {
     const sorted = [...route.stops].sort((a, b) => a.time.localeCompare(b.time));
     const coords = sorted.map(s => [s.lat, s.lng]);
 
+    const shadow = L.polyline(coords, {
+      pane: 'routeShadow',
+      color: 'rgba(0,0,0,0.18)', weight: 14,
+      lineCap: 'round', lineJoin: 'round',
+    }).addTo(map);
+
     const casing = L.polyline(coords, {
-      color: '#fff', weight: 9, opacity: 1, lineCap: 'round', lineJoin: 'round',
+      pane: 'routeCasing',
+      color: '#fff', weight: 9, opacity: 1,
+      lineCap: 'round', lineJoin: 'round',
     }).addTo(map);
 
     const line = L.polyline(coords, {
-      color: route.color, weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round',
+      pane: 'routeLine',
+      color: route.color, weight: 5, opacity: 1,
+      lineCap: 'round', lineJoin: 'round',
     }).addTo(map);
 
-    routePolylines.push({ casing, line, routeIdx });
+    routePolylines.push({ shadow, casing, line, routeIdx });
   });
   updatePolylinesVisibility();
 }
 
 function updatePolylinesVisibility() {
-  routePolylines.forEach(({ casing, line, routeIdx }) => {
+  routePolylines.forEach(({ shadow, casing, line, routeIdx }) => {
     const active = routeIdx === activeRouteIdx;
-    casing.setStyle({ opacity: active ? 1 : 0.12 });
-    line.setStyle({ opacity: active ? 1 : 0.12 });
+    shadow.setStyle({ opacity: active ? 1 : 0 });
+    casing.setStyle({ opacity: active ? 1 : 0.15 });
+    line.setStyle({ opacity: active ? 1 : 0.15 });
   });
 }
 
