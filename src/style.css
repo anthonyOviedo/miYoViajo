@@ -71,6 +71,85 @@ html, body {
   letter-spacing: 0.3px;
 }
 
+/* ── Edit button ── */
+#edit-btn {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  color: var(--text-muted);
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+#edit-btn svg { width: 16px; height: 16px; }
+#edit-btn:active, #edit-btn.active {
+  background: var(--primary); color: #fff; border-color: var(--primary);
+}
+
+/* ── Edit bar ── */
+#edit-bar {
+  position: absolute;
+  top: 57px; left: 0; right: 0;
+  z-index: 1100;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  gap: 10px;
+}
+#edit-bar.hidden { display: none; }
+.edit-bar-actions { display: flex; gap: 8px; flex-shrink: 0; }
+#edit-reset-btn {
+  background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
+  color: #fff; padding: 5px 12px; border-radius: 8px; cursor: pointer; font-size: 0.78rem;
+}
+#edit-save-btn {
+  background: #fff; border: none;
+  color: var(--primary); padding: 5px 12px; border-radius: 8px;
+  cursor: pointer; font-size: 0.78rem; font-weight: 700;
+}
+
+/* ── Edit modal ── */
+#edit-modal {
+  position: fixed;
+  inset: 0; z-index: 2000;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+}
+#edit-modal.hidden { display: none; }
+.edit-modal-box {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 20px;
+  width: min(340px, 90vw);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.edit-modal-title {
+  font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 14px;
+}
+#edit-stop-name {
+  width: 100%; padding: 10px 14px;
+  border: 1.5px solid var(--border); border-radius: 10px;
+  font-size: 0.9rem; color: var(--text); background: var(--surface2);
+  outline: none; margin-bottom: 14px;
+}
+#edit-stop-name:focus { border-color: var(--primary); }
+.edit-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+#edit-modal-cancel {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text-muted); padding: 8px 16px; border-radius: 10px; cursor: pointer;
+}
+#edit-modal-confirm {
+  background: var(--primary); border: none;
+  color: #fff; padding: 8px 18px; border-radius: 10px; cursor: pointer; font-weight: 600;
+}
+
 /* ── Map ── */
 #map {
   position: absolute;
