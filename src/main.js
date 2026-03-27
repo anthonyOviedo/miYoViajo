@@ -42,16 +42,44 @@ function initMap() {
   fitRoute(activeRouteIdx);
 }
 
+// ── Route polylines (Waze style) ──
+function drawRoutePolylines() {
+  ROUTES.forEach((route, routeIdx) => {
+    const sorted = [...route.stops].sort((a, b) => a.time.localeCompare(b.time));
+    const coords = sorted.map(s => [s.lat, s.lng]);
+
+    const casing = L.polyline(coords, {
+      color: '#fff', weight: 9, opacity: 1, lineCap: 'round', lineJoin: 'round',
+    }).addTo(map);
+
+    const line = L.polyline(coords, {
+      color: route.color, weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round',
+    }).addTo(map);
+
+    routePolylines.push({ casing, line, routeIdx });
+  });
+  updatePolylinesVisibility();
+}
+
+function updatePolylinesVisibility() {
+  routePolylines.forEach(({ casing, line, routeIdx }) => {
+    const active = routeIdx === activeRouteIdx;
+    casing.setStyle({ opacity: active ? 1 : 0.12 });
+    line.setStyle({ opacity: active ? 1 : 0.12 });
+  });
+}
+
 // ── Stop markers ──
 function makeStopIcon(color, isTerminal) {
-  const size = isTerminal ? 14 : 10;
+  const size = isTerminal ? 10 : 6;
+  const bg = isTerminal ? color : '#fff';
+  const border = isTerminal ? '#fff' : color;
   return L.divIcon({
     className: 'bus-marker',
-    html: `<div class="stop-marker-dot" style="
+    html: `<div style="
       width:${size}px;height:${size}px;border-radius:50%;
-      background:${isTerminal ? color : '#fff'};
-      border:2.5px solid ${color};
-      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+      background:${bg};border:2px solid ${border};
+      box-shadow:0 1px 3px rgba(0,0,0,0.25);
     "></div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
