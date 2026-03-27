@@ -89,17 +89,19 @@ function updatePolylinesVisibility() {
 
 // ── Stop markers ──
 function makeStopIcon(color, isTerminal) {
-  const size = isTerminal ? 10 : 6;
-  const bg = isTerminal ? color : '#fff';
-  const border = isTerminal ? '#fff' : color;
+  const size = isTerminal ? 11 : 5;
+  const bg   = isTerminal ? color : '#fff';
+  const bw   = isTerminal ? 2.5 : 1.5;
+  const bc   = isTerminal ? '#fff' : color;
   return L.divIcon({
-    className: 'bus-marker',
+    className: '',
     html: `<div style="
       width:${size}px;height:${size}px;border-radius:50%;
-      background:${bg};border:2px solid ${border};
-      box-shadow:0 1px 3px rgba(0,0,0,0.25);
+      background:${bg};border:${bw}px solid ${bc};
+      box-shadow:0 1px 3px rgba(0,0,0,0.22);
+      pointer-events:none;
     "></div>`,
-    iconSize: [size, size],
+    iconSize:   [size, size],
     iconAnchor: [size / 2, size / 2],
   });
 }
