@@ -471,6 +471,109 @@ function setupDraggablePanel() {
   expandPanel('half');
 }
 
+// ── Live buses ──
+const ROUTE_DURATION_MIN = 90;
+
+function toMin(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function calcBearing(lat1, lng1, lat2, lng2) {
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
+  const y = Math.sin(dLng) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(dLng);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function getPointAlongRoute(geometry, fraction) {
+  if (!geometry || geometry.length < 2) return null;
+  fraction = Math.max(0, Math.min(1, fraction));
+
+  let totalLen = 0;
+  const segs = [];
+  for (let i = 0; i < geometry.length - 1; i++) {
+    const d = haversine(geometry[i][0], geometry[i][1], geometry[i + 1][0], geometry[i + 1][1]);
+    segs.push(d);
+    totalLen += d;
+  }
+
+  const target = fraction * totalLen;
+  let acc = 0;
+  for (let i = 0; i < segs.length; i++) {
+    if (acc + segs[i] >= target) {
+      const t = segs[i] > 0 ? (target - acc) / segs[i] : 0;
+      const lat = geometry[i][0] + t * (geometry[i + 1][0] - geometry[i][0]);
+      const lng = geometry[i][1] + t * (geometry[i + 1][1] - geometry[i][1]);
+      const bearing = calcBearing(geometry[i][0], geometry[i][1], geometry[i + 1][0], geometry[i + 1][1]);
+      return { lat, lng, bearing };
+    }
+    acc += segs[i];
+  }
+  const last = geometry[geometry.length - 1];
+  return { lat: last[0], lng: last[1], bearing: 0 };
+}
+
+function makeBusIcon(color, bearing, departure) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="bus-live" style="--bus-color:${color};transform:rotate(${bearing}deg)">
+      <svg viewBox="0 0 20 20" fill="white" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="4" width="16" height="11" rx="2" fill="white"/>
+        <rect x="3" y="5" width="14" height="7" rx="1" fill="${color}"/>
+        <rect x="3" y="13" width="14" height="1" fill="${color}"/>
+        <circle cx="5.5" cy="15.5" r="1.5" fill="#333"/>
+        <circle cx="14.5" cy="15.5" r="1.5" fill="#333"/>
+        <rect x="4" y="6" width="5" height="3" rx="0.5" fill="rgba(255,255,255,0.7)"/>
+        <rect x="11" y="6" width="5" height="3" rx="0.5" fill="rgba(255,255,255,0.7)"/>
+      </svg>
+    </div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+  });
+}
+
+function updateBuses() {
+  busMarkers.forEach(m => m.remove());
+  busMarkers = [];
+
+  const geometry = routeGeometries[activeRouteIdx];
+  if (!geometry) return;
+
+  const route = ROUTES[activeRouteIdx];
+  const now = new Date();
+  const curMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const dayKey = now.getDay() === 0 ? 'domingo' : now.getDay() === 6 ? 'sabado' : 'semana';
+  const times = route.schedule[dayKey] || route.schedule.semana;
+
+  times.forEach(dep => {
+    const depMin = toMin(dep);
+    const elapsed = curMin - depMin;
+    if (elapsed < 0 || elapsed > ROUTE_DURATION_MIN) return;
+
+    const fraction = elapsed / ROUTE_DURATION_MIN;
+    const pt = getPointAlongRoute(geometry, fraction);
+    if (!pt) return;
+
+    const icon = makeBusIcon(route.color, pt.bearing, dep);
+    const remaining = Math.round(ROUTE_DURATION_MIN - elapsed);
+    const marker = L.marker([pt.lat, pt.lng], { icon, pane: 'busDots', zIndexOffset: 500 })
+      .addTo(map)
+      .bindPopup(`
+        <div class="popup-route" style="background:${route.color}20;border-left:3px solid ${route.color};padding:4px 8px;border-radius:4px;margin-bottom:6px;font-size:0.72rem;font-weight:600;color:${route.color}">${route.short}</div>
+        <div class="popup-title">Salida ${dep}</div>
+        <div class="popup-sub">En ruta · ${remaining} min restantes</div>
+      `, { maxWidth: 200 });
+    busMarkers.push(marker);
+  });
+}
+
+function startBusSimulation() {
+  updateBuses();
+  setInterval(updateBuses, 30_000);
+}
+
 // ── Edit mode ──
 function toggleEditMode() {
   editMode = !editMode;
