@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\" -H \"Accept: text/html,application/xhtml+xml,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\" -H \"Accept-Language: es-CR,es;q=0.9,en;q=0.8\" -H \"Accept-Encoding: gzip, deflate, br\" -L \"https://yoviajocr.com/bus/san-jose-grecia\")",
+      "Bash(curl -s -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\" -H \"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\" -H \"Accept-Language: es-CR,es;q=0.9\" --compressed -L \"https://yoviajocr.com/bus/san-jose-grecia\")",
+      "Bash(curl -s -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\" -H \"Accept: application/json\" -H \"Accept-Language: es-CR,es;q=0.9\" --compressed -L \"https://yoviajocr.com/api/schedule/887/stops\")",
+      "Bash(__NEW_LINE_32fe2f23dec48fff__ echo:*)",
+      "Bash(__NEW_LINE_32fe2f23dec48fff__ curl:*)",
+      "Bash(curl -s -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\" -H \"Accept: text/html\" -H \"Accept-Language: es-CR,es;q=0.9\" --compressed -L \"https://yoviajocr.com/bus/san-jose-grecia\")",
+      "Bash(git --version)",
+      "Bash(npm --version)",
+      "Bash(gh auth:*)",
+      "Bash(npm create:*)",
+      "Bash(npm init:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>MiYoViajo</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="topbar">
+      <div class="logo">
+        <span class="bus-icon">🚌</span>
+        <span>MiYoViajo</span>
+      </div>
+      <div id="route-badge">San José – Grecia</div>
+    </header>
+
+    <div id="map"></div>
+
+    <div id="bottom-panel">
+      <div id="panel-handle"></div>
+
+      <div id="my-location-row">
+        <div id="location-info">
+          <span id="location-dot"></span>
+          <span id="location-text">Buscando ubicación...</span>
+        </div>
+        <button id="center-btn" title="Centrar en mi ubicación">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="next-stop-section">
+        <div class="section-label">Próxima parada</div>
+        <div id="next-stop-name">—</div>
+        <div id="next-stop-dist">—</div>
+      </div>
+
+      <div id="stops-list">
+        <div class="section-label">Todas las paradas</div>
+        <div id="stops-items"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
