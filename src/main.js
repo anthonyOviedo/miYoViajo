@@ -466,6 +466,141 @@ function setupDraggablePanel() {
   expandPanel('half');
 }
 
+// ── Edit mode ──
+function toggleEditMode() {
+  editMode = !editMode;
+  document.getElementById('edit-btn').classList.toggle('active', editMode);
+  document.getElementById('edit-bar').classList.toggle('hidden', !editMode);
+  map.getContainer().style.cursor = editMode ? 'crosshair' : '';
+
+  if (editMode) {
+    map.on('click', onEditMapClick);
+    stopMarkers.forEach(({ marker, routeIdx }) => {
+      if (routeIdx !== activeRouteIdx) return;
+      marker.dragging.enable();
+      marker.on('dragend', onMarkerDragEnd);
+    });
+  } else {
+    map.off('click', onEditMapClick);
+    map.closePopup();
+    stopMarkers.forEach(({ marker }) => {
+      marker.dragging.disable();
+      marker.off('dragend', onMarkerDragEnd);
+    });
+  }
+}
+
+function onEditMapClick(e) {
+  if (e.originalEvent.target.closest?.('.leaflet-marker-icon')) return;
+  pendingLatLng = e.latlng;
+  document.getElementById('edit-stop-name').value = '';
+  document.getElementById('edit-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('edit-stop-name').focus(), 50);
+}
+
+function onMarkerDragEnd(e) {
+  const marker = e.target;
+  const { lat, lng } = marker.getLatLng();
+  const entry = stopMarkers.find(m => m.marker === marker);
+  if (!entry) return;
+  const stop = routeStops[entry.routeIdx].find(s => s.id === entry.stopId);
+  if (stop) { stop.lat = lat; stop.lng = lng; }
+  rebuildRoute(entry.routeIdx);
+}
+
+function setupEditModal() {
+  document.getElementById('edit-modal-cancel').addEventListener('click', () => {
+    document.getElementById('edit-modal').classList.add('hidden');
+    pendingLatLng = null;
+  });
+
+  document.getElementById('edit-modal-confirm').addEventListener('click', confirmAddStop);
+  document.getElementById('edit-stop-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') confirmAddStop();
+    if (e.key === 'Escape') document.getElementById('edit-modal').classList.add('hidden');
+  });
+}
+
+function confirmAddStop() {
+  const name = document.getElementById('edit-stop-name').value.trim();
+  if (!name || !pendingLatLng) return;
+  document.getElementById('edit-modal').classList.add('hidden');
+
+  const newStop = {
+    id: Date.now(),
+    title: name,
+    address: `${pendingLatLng.lat.toFixed(5)}, ${pendingLatLng.lng.toFixed(5)}`,
+    lat: pendingLatLng.lat,
+    lng: pendingLatLng.lng,
+    time: '00:00',
+    starts: 0,
+    ends: 0,
+  };
+  routeStops[activeRouteIdx].push(newStop);
+  pendingLatLng = null;
+  rebuildMarkersAndRoute(activeRouteIdx);
+}
+
+function rebuildMarkersAndRoute(routeIdx) {
+  // Remove markers for this route
+  stopMarkers = stopMarkers.filter(({ marker, routeIdx: ri }) => {
+    if (ri !== routeIdx) return true;
+    marker.remove();
+    return false;
+  });
+  // Re-add markers
+  routeStops[routeIdx].forEach(stop => addStopMarker(stop, routeIdx));
+  updateMarkersVisibility();
+  // Re-enable drag if in edit mode
+  if (editMode) {
+    stopMarkers.forEach(({ marker, routeIdx: ri }) => {
+      if (ri !== activeRouteIdx) return;
+      marker.dragging.enable();
+      marker.on('dragend', onMarkerDragEnd);
+    });
+  }
+  renderStopsList();
+  rebuildRoute(routeIdx);
+}
+
+async function rebuildRoute(routeIdx) {
+  // Remove old polylines for this route
+  routePolylines = routePolylines.filter(({ shadow, casing, line, routeIdx: ri }) => {
+    if (ri !== routeIdx) return true;
+    shadow.remove(); casing.remove(); line.remove();
+    return false;
+  });
+  const fallback = [...routeStops[routeIdx]]
+    .sort((a, b) => a.time.localeCompare(b.time))
+    .map(s => [s.lat, s.lng]);
+  try {
+    const coords = await fetchOSRM(routeIdx);
+    drawPolylineForRoute(routeIdx, coords || fallback);
+  } catch {
+    drawPolylineForRoute(routeIdx, fallback);
+  }
+  updatePolylinesVisibility();
+}
+
+function setupEditBar() {
+  document.getElementById('edit-btn').addEventListener('click', toggleEditMode);
+
+  document.getElementById('edit-save-btn').addEventListener('click', () => {
+    localStorage.setItem(LS_KEY(activeRouteIdx), JSON.stringify(routeStops[activeRouteIdx]));
+    document.getElementById('edit-bar-label').textContent = '✅ Guardado';
+    setTimeout(() => {
+      document.getElementById('edit-bar-label').textContent = '✏️ Toca el mapa para agregar parada';
+    }, 1500);
+  });
+
+  document.getElementById('edit-reset-btn').addEventListener('click', () => {
+    if (!confirm('¿Restaurar paradas originales?')) return;
+    localStorage.removeItem(LS_KEY(activeRouteIdx));
+    routeStops[activeRouteIdx] = [...ROUTES[activeRouteIdx].stops];
+    rebuildMarkersAndRoute(activeRouteIdx);
+  });
+}
+
 // ── Boot ──
 initMap();
 renderRouteDropdown();
