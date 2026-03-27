@@ -22,7 +22,34 @@
         </select>
         <span id="route-arrow">▾</span>
       </div>
+      <button id="edit-btn" title="Editar ruta">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+      </button>
     </header>
+
+    <!-- Edit mode bar -->
+    <div id="edit-bar" class="hidden">
+      <span id="edit-bar-label">✏️ Toca el mapa para agregar parada</span>
+      <div class="edit-bar-actions">
+        <button id="edit-reset-btn">Restaurar</button>
+        <button id="edit-save-btn">Guardar</button>
+      </div>
+    </div>
+
+    <!-- Add stop modal -->
+    <div id="edit-modal" class="hidden">
+      <div class="edit-modal-box">
+        <div class="edit-modal-title">Nueva parada</div>
+        <input id="edit-stop-name" type="text" placeholder="Nombre de la parada" autocomplete="off" />
+        <div class="edit-modal-actions">
+          <button id="edit-modal-cancel">Cancelar</button>
+          <button id="edit-modal-confirm">Agregar</button>
+        </div>
+      </div>
+    </div>
 
     <div id="map"></div>
 
