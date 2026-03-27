@@ -20,12 +20,14 @@ jobs:
             -d "{
               \"embeds\": [{
                 \"title\": \"🚌 MiYoViajo — Deploy en progreso\",
-                \"description\": \"Nuevo push detectado, Netlify está desplegando...\",
+                \"description\": \"Nuevo push detectado, Netlify y Cloudflare están desplegando...\",
                 \"color\": 16776960,
                 \"fields\": [
                   { \"name\": \"📝 Commit\", \"value\": \"\`$SHORT_SHA\` $COMMIT_MSG\", \"inline\": false },
                   { \"name\": \"👤 Autor\", \"value\": \"$AUTHOR\", \"inline\": true },
-                  { \"name\": \"🌿 Rama\", \"value\": \"\`main\`\", \"inline\": true }
+                  { \"name\": \"🌿 Rama\", \"value\": \"\`main\`\", \"inline\": true },
+                  { \"name\": \"🌐 Netlify\", \"value\": \"https://miyoviajo.netlify.app\", \"inline\": true },
+                  { \"name\": \"☁️ Cloudflare\", \"value\": \"https://miyoviajo.workers.dev\", \"inline\": true }
                 ],
                 \"footer\": { \"text\": \"GitHub Actions\" },
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
@@ -36,33 +38,64 @@ jobs:
     runs-on: ubuntu-latest
     needs: notify
     steps:
-      - name: Wait for Netlify deploy
+      - name: Wait for deploys
         run: sleep 60
 
-      - name: Health check
-        id: check
+      - name: Check Netlify
+        id: netlify
         run: |
           URL="https://miyoviajo.netlify.app"
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$URL")
-          RESPONSE_TIME=$(curl -s -o /dev/null -w "%{time_total}" --max-time 15 "$URL")
+          TIME=$(curl -s -o /dev/null -w "%{time_total}" --max-time 15 "$URL")
           echo "status=$STATUS" >> $GITHUB_OUTPUT
-          echo "response_time=$RESPONSE_TIME" >> $GITHUB_OUTPUT
-          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "time=$TIME" >> $GITHUB_OUTPUT
+
+      - name: Check Cloudflare
+        id: cloudflare
+        run: |
+          URL="https://miyoviajo.workers.dev"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$URL")
+          TIME=$(curl -s -o /dev/null -w "%{time_total}" --max-time 15 "$URL")
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "time=$TIME" >> $GITHUB_OUTPUT
 
       - name: Notify Discord – Health OK
-        if: steps.check.outputs.status == '200'
+        if: steps.netlify.outputs.status == '200' && steps.cloudflare.outputs.status == '200'
         run: |
           curl -s -X POST "${{ secrets.DISCORD_WH }}" \
             -H "Content-Type: application/json" \
             -d "{
               \"embeds\": [{
-                \"title\": \"✅ MiYoViajo — App saludable\",
-                \"description\": \"El sitio responde correctamente tras el deploy.\",
+                \"title\": \"✅ MiYoViajo — Ambos sitios saludables\",
+                \"description\": \"Netlify y Cloudflare responden correctamente.\",
                 \"color\": 3066993,
                 \"fields\": [
-                  { \"name\": \"🌐 URL\", \"value\": \"${{ steps.check.outputs.url }}\", \"inline\": false },
-                  { \"name\": \"📶 HTTP\", \"value\": \"\`${{ steps.check.outputs.status }}\`\", \"inline\": true },
-                  { \"name\": \"⚡ Respuesta\", \"value\": \"${{ steps.check.outputs.response_time }}s\", \"inline\": true }
+                  { \"name\": \"🌐 Netlify\", \"value\": \"https://miyoviajo.netlify.app\", \"inline\": true },
+                  { \"name\": \"📶 HTTP\", \"value\": \"\`${{ steps.netlify.outputs.status }}\` · ${{ steps.netlify.outputs.time }}s\", \"inline\": true },
+                  { \"name\": \"\u200b\", \"value\": \"\u200b\", \"inline\": false },
+                  { \"name\": \"☁️ Cloudflare\", \"value\": \"https://miyoviajo.workers.dev\", \"inline\": true },
+                  { \"name\": \"📶 HTTP\", \"value\": \"\`${{ steps.cloudflare.outputs.status }}\` · ${{ steps.cloudflare.outputs.time }}s\", \"inline\": true }
+                ],
+                \"footer\": { \"text\": \"Health Check\" },
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }"
+
+      - name: Notify Discord – Health PARTIAL
+        if: (steps.netlify.outputs.status == '200') != (steps.cloudflare.outputs.status == '200')
+        run: |
+          NL_ICON=$([ "${{ steps.netlify.outputs.status }}" = "200" ] && echo "✅" || echo "❌")
+          CF_ICON=$([ "${{ steps.cloudflare.outputs.status }}" = "200" ] && echo "✅" || echo "❌")
+          curl -s -X POST "${{ secrets.DISCORD_WH }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"⚠️ MiYoViajo — Deploy parcial\",
+                \"description\": \"Un sitio no responde correctamente.\",
+                \"color\": 16753920,
+                \"fields\": [
+                  { \"name\": \"$NL_ICON Netlify\", \"value\": \"https://miyoviajo.netlify.app · \`${{ steps.netlify.outputs.status }}\`\", \"inline\": false },
+                  { \"name\": \"$CF_ICON Cloudflare\", \"value\": \"https://miyoviajo.workers.dev · \`${{ steps.cloudflare.outputs.status }}\`\", \"inline\": false }
                 ],
                 \"footer\": { \"text\": \"Health Check\" },
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
@@ -70,24 +103,24 @@ jobs:
             }"
 
       - name: Notify Discord – Health FAIL
-        if: steps.check.outputs.status != '200'
+        if: steps.netlify.outputs.status != '200' && steps.cloudflare.outputs.status != '200'
         run: |
           curl -s -X POST "${{ secrets.DISCORD_WH }}" \
             -H "Content-Type: application/json" \
             -d "{
               \"embeds\": [{
-                \"title\": \"❌ MiYoViajo — App caída\",
-                \"description\": \"El sitio no responde correctamente. Revisar en Netlify.\",
+                \"title\": \"❌ MiYoViajo — Ambos sitios caídos\",
+                \"description\": \"Ningún sitio responde. Revisar Netlify y Cloudflare.\",
                 \"color\": 15158332,
                 \"fields\": [
-                  { \"name\": \"🌐 URL\", \"value\": \"${{ steps.check.outputs.url }}\", \"inline\": false },
-                  { \"name\": \"📶 HTTP\", \"value\": \"\`${{ steps.check.outputs.status }}\`\", \"inline\": true }
+                  { \"name\": \"🌐 Netlify\", \"value\": \"https://miyoviajo.netlify.app · \`${{ steps.netlify.outputs.status }}\`\", \"inline\": false },
+                  { \"name\": \"☁️ Cloudflare\", \"value\": \"https://miyoviajo.workers.dev · \`${{ steps.cloudflare.outputs.status }}\`\", \"inline\": false }
                 ],
                 \"footer\": { \"text\": \"Health Check\" },
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
               }]
             }"
 
-      - name: Fail workflow if unhealthy
-        if: steps.check.outputs.status != '200'
+      - name: Fail workflow if both unhealthy
+        if: steps.netlify.outputs.status != '200' && steps.cloudflare.outputs.status != '200'
         run: exit 1
