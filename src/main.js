@@ -86,8 +86,8 @@ function drawPolylineForRoute(routeIdx, coords) {
   updatePolylinesVisibility();
 }
 
-async function fetchOSRM(stops) {
-  // Use only terminal stops (starts/ends) to avoid zigzags from mixed route variants
+async function fetchOSRM(routeIdx) {
+  const stops   = routeStops[routeIdx];
   const origin  = stops.find(s => s.starts);
   const dest    = stops.find(s => s.ends);
   if (!origin || !dest) return null;
