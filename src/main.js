@@ -151,28 +151,55 @@ function makeStopIcon(color, isTerminal) {
 
 function addAllStopMarkers() {
   ROUTES.forEach((route, routeIdx) => {
-    route.stops.forEach((stop) => {
-      const isTerminal = stop.starts || stop.ends;
-      const icon = makeStopIcon(route.color, isTerminal);
-      const marker = L.marker([stop.lat, stop.lng], { icon, pane: 'stopDots' })
-        .addTo(map)
-        .bindPopup(`
-          <div class="popup-route" style="background:${route.color}20;border-left:3px solid ${route.color};padding:4px 8px;border-radius:4px;margin-bottom:6px;font-size:0.72rem;font-weight:600;color:${route.color}">${route.short}</div>
-          <div class="popup-title">${stop.title}</div>
-          <div class="popup-sub">${stop.address}</div>
-          <div class="popup-time">+${stop.time} desde ${stop.starts ? 'inicio' : route.stops.find(s => s.starts)?.title || 'inicio'}</div>
-        `, { maxWidth: 230 })
-        .on('click', () => {
-          setActiveRoute(routeIdx);
-          highlightStop(stop.id);
-        });
-
-      stopMarkers.push({ marker, routeIdx, stop });
+    routeStops[routeIdx].forEach((stop) => {
+      addStopMarker(stop, routeIdx);
     });
   });
-
   updateMarkersVisibility();
 }
+
+function addStopMarker(stop, routeIdx) {
+  const route = ROUTES[routeIdx];
+  const isTerminal = stop.starts || stop.ends;
+  const icon = makeStopIcon(route.color, isTerminal);
+  const marker = L.marker([stop.lat, stop.lng], { icon, pane: 'stopDots', draggable: false })
+    .addTo(map)
+    .bindPopup(buildPopup(stop, route, routeIdx), { maxWidth: 230 })
+    .on('click', () => {
+      if (editMode && routeIdx === activeRouteIdx) {
+        showDeleteConfirm(stop.id, routeIdx, marker);
+      } else {
+        setActiveRoute(routeIdx);
+        highlightStop(stop.id);
+      }
+    });
+  stopMarkers.push({ marker, routeIdx, stopId: stop.id });
+}
+
+function buildPopup(stop, route, routeIdx) {
+  const origin = routeStops[routeIdx].find(s => s.starts);
+  return `
+    <div class="popup-route" style="background:${route.color}20;border-left:3px solid ${route.color};padding:4px 8px;border-radius:4px;margin-bottom:6px;font-size:0.72rem;font-weight:600;color:${route.color}">${route.short}</div>
+    <div class="popup-title">${stop.title}</div>
+    <div class="popup-sub">${stop.address}</div>
+    <div class="popup-time">+${stop.time} desde ${stop.starts ? 'inicio' : origin?.title || 'inicio'}</div>
+  `;
+}
+
+function showDeleteConfirm(stopId, routeIdx, marker) {
+  marker.bindPopup(`
+    <div style="text-align:center;padding:4px 0">
+      <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px">¿Eliminar parada?</div>
+      <button onclick="window._deleteStop(${stopId},${routeIdx})" style="background:#ef4444;color:#fff;border:none;padding:6px 16px;border-radius:8px;cursor:pointer;font-size:0.82rem">Eliminar</button>
+    </div>
+  `, { maxWidth: 180 }).openPopup();
+}
+
+window._deleteStop = (stopId, routeIdx) => {
+  routeStops[routeIdx] = routeStops[routeIdx].filter(s => s.id !== stopId);
+  map.closePopup();
+  rebuildMarkersAndRoute(routeIdx);
+};
 
 function updateMarkersVisibility() {
   stopMarkers.forEach(({ marker, routeIdx }) => {
