@@ -212,29 +212,37 @@ html, body {
   font-weight: 600;
 }
 
-/* ── Route tabs ── */
-#route-tabs {
+/* ── Route dropdown ── */
+#route-selector {
+  position: relative;
   display: flex;
-  gap: 6px;
+  align-items: center;
 }
 
-.route-tab {
-  padding: 5px 12px;
-  border-radius: 20px;
-  border: 1.5px solid var(--tab-color, var(--primary));
-  background: #fff;
-  color: var(--tab-color, var(--primary));
-  font-size: 0.72rem;
+#route-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 6px 32px 6px 12px;
+  font-size: 0.78rem;
   font-weight: 700;
+  color: var(--text);
   cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
+  outline: none;
+  transition: border-color 0.2s;
+  max-width: 160px;
 }
-.route-tab.active {
-  background: var(--tab-color, var(--primary));
-  color: #fff;
+#route-select:focus { border-color: var(--primary); }
+
+#route-arrow {
+  position: absolute;
+  right: 10px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  pointer-events: none;
 }
-.route-tab:active { opacity: 0.8; }
 
 /* ── Schedule chips ── */
 #schedule-section { margin-bottom: 16px; }

@@ -97,28 +97,33 @@ function fitRoute(routeIdx) {
   map.fitBounds(bounds, { padding: [40, 40] });
 }
 
-// ── Route tabs ──
-function renderRouteTabs() {
-  const container = document.getElementById('route-tabs');
+// ── Route dropdown ──
+function renderRouteDropdown() {
+  const select = document.getElementById('route-select');
   ROUTES.forEach((route, idx) => {
-    const btn = document.createElement('button');
-    btn.className = 'route-tab' + (idx === activeRouteIdx ? ' active' : '');
-    btn.textContent = route.short;
-    btn.style.setProperty('--tab-color', route.color);
-    btn.addEventListener('click', () => setActiveRoute(idx));
-    container.appendChild(btn);
+    const opt = document.createElement('option');
+    opt.value = idx;
+    opt.textContent = route.name;
+    select.appendChild(opt);
   });
+  select.value = activeRouteIdx;
+  select.addEventListener('change', () => setActiveRoute(Number(select.value)));
+  updateDropdownColor();
+}
+
+function updateDropdownColor() {
+  const select = document.getElementById('route-select');
+  const color = ROUTES[activeRouteIdx].color;
+  select.style.color = color;
+  select.style.borderColor = color;
 }
 
 function setActiveRoute(idx) {
   if (idx === activeRouteIdx) return;
   activeRouteIdx = idx;
 
-  // Update tabs
-  document.querySelectorAll('.route-tab').forEach((btn, i) => {
-    btn.classList.toggle('active', i === idx);
-  });
-
+  document.getElementById('route-select').value = idx;
+  updateDropdownColor();
   updateMarkersVisibility();
   renderStopsList();
   renderScheduleChips();
@@ -360,7 +365,7 @@ function setupDraggablePanel() {
 
 // ── Boot ──
 initMap();
-renderRouteTabs();
+renderRouteDropdown();
 renderStopsList();
 renderScheduleChips();
 startGeolocation();
