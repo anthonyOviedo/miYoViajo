@@ -290,7 +290,7 @@ function renderStopsList() {
   const select = document.getElementById('stops-select');
   select.innerHTML = '';
   const route = ROUTES[activeRouteIdx];
-  const sorted = [...route.stops].sort((a, b) => a.time.localeCompare(b.time));
+  const sorted = [...routeStops[activeRouteIdx]].sort((a, b) => a.time.localeCompare(b.time));
 
   sorted.forEach((stop) => {
     const opt = document.createElement('option');
