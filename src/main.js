@@ -539,18 +539,20 @@ function getPointAlongRoute(geometry, fraction) {
   return { lat: last[0], lng: last[1], bearing: 0 };
 }
 
-function makeBusIcon(color, bearing, departure) {
+const BUS_YELLOW = '#f59e0b';
+
+function makeBusIcon(bearing) {
   return L.divIcon({
     className: '',
-    html: `<div class="bus-live" style="--bus-color:${color};transform:rotate(${bearing}deg)">
-      <svg viewBox="0 0 20 20" fill="white" xmlns="http://www.w3.org/2000/svg">
+    html: `<div class="bus-live" style="--bus-color:${BUS_YELLOW};transform:rotate(${bearing}deg)">
+      <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
         <rect x="2" y="4" width="16" height="11" rx="2" fill="white"/>
-        <rect x="3" y="5" width="14" height="7" rx="1" fill="${color}"/>
-        <rect x="3" y="13" width="14" height="1" fill="${color}"/>
+        <rect x="3" y="5" width="14" height="7" rx="1" fill="${BUS_YELLOW}"/>
+        <rect x="3" y="13" width="14" height="1" fill="${BUS_YELLOW}"/>
         <circle cx="5.5" cy="15.5" r="1.5" fill="#333"/>
         <circle cx="14.5" cy="15.5" r="1.5" fill="#333"/>
-        <rect x="4" y="6" width="5" height="3" rx="0.5" fill="rgba(255,255,255,0.7)"/>
-        <rect x="11" y="6" width="5" height="3" rx="0.5" fill="rgba(255,255,255,0.7)"/>
+        <rect x="4" y="6" width="5" height="3" rx="0.5" fill="rgba(255,255,255,0.75)"/>
+        <rect x="11" y="6" width="5" height="3" rx="0.5" fill="rgba(255,255,255,0.75)"/>
       </svg>
     </div>`,
     iconSize: [26, 26],
