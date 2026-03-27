@@ -104,13 +104,11 @@ async function fetchOSRM(routeIdx) {
 
 async function drawRoutePolylines() {
   for (let routeIdx = 0; routeIdx < ROUTES.length; routeIdx++) {
-    const route = ROUTES[routeIdx];
-    const fallback = [...route.stops]
+    const fallback = [...routeStops[routeIdx]]
       .sort((a, b) => a.time.localeCompare(b.time))
       .map(s => [s.lat, s.lng]);
-
     try {
-      const coords = await fetchOSRM(route.stops);
+      const coords = await fetchOSRM(routeIdx);
       drawPolylineForRoute(routeIdx, coords || fallback);
     } catch {
       drawPolylineForRoute(routeIdx, fallback);
