@@ -115,9 +115,10 @@ function updateMarkersVisibility() {
   stopMarkers.forEach(({ marker, routeIdx }) => {
     const el = marker.getElement();
     if (!el) return;
-    el.style.opacity = routeIdx === activeRouteIdx ? '1' : '0.25';
+    el.style.opacity = routeIdx === activeRouteIdx ? '1' : '0';
     el.style.pointerEvents = routeIdx === activeRouteIdx ? 'auto' : 'none';
   });
+  updatePolylinesVisibility();
 }
 
 function fitRoute(routeIdx) {
