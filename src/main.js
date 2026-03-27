@@ -57,19 +57,19 @@ function drawRoutePolylines() {
 
     const shadow = L.polyline(coords, {
       pane: 'routeShadow',
-      color: 'rgba(0,0,0,0.18)', weight: 14,
+      color: 'rgba(0,0,0,0.22)', weight: 18,
       lineCap: 'round', lineJoin: 'round',
     }).addTo(map);
 
     const casing = L.polyline(coords, {
       pane: 'routeCasing',
-      color: '#fff', weight: 9, opacity: 1,
+      color: '#fff', weight: 13, opacity: 1,
       lineCap: 'round', lineJoin: 'round',
     }).addTo(map);
 
     const line = L.polyline(coords, {
       pane: 'routeLine',
-      color: route.color, weight: 5, opacity: 1,
+      color: route.color, weight: 8, opacity: 0.95,
       lineCap: 'round', lineJoin: 'round',
     }).addTo(map);
 
