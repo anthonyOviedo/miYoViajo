@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#1a1a2e" />
+  <meta name="theme-color" content="#ffffff" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>MiYoViajo</title>
@@ -23,30 +23,34 @@
     <div id="map"></div>
 
     <div id="bottom-panel">
-      <div id="panel-handle"></div>
+      <div id="panel-handle-area">
+        <div id="panel-handle"></div>
+      </div>
 
-      <div id="my-location-row">
-        <div id="location-info">
-          <span id="location-dot"></span>
-          <span id="location-text">Buscando ubicación...</span>
+      <div id="panel-content">
+        <div id="my-location-row">
+          <div id="location-info">
+            <span id="location-dot"></span>
+            <span id="location-text">Buscando ubicación...</span>
+          </div>
+          <button id="center-btn" title="Centrar en mi ubicación">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+            </svg>
+          </button>
         </div>
-        <button id="center-btn" title="Centrar en mi ubicación">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-          </svg>
-        </button>
-      </div>
 
-      <div id="next-stop-section">
-        <div class="section-label">Próxima parada</div>
-        <div id="next-stop-name">—</div>
-        <div id="next-stop-dist">—</div>
-      </div>
+        <div id="next-stop-section">
+          <div class="section-label">Parada más cercana</div>
+          <div id="next-stop-name">—</div>
+          <div id="next-stop-dist">—</div>
+        </div>
 
-      <div id="stops-list">
-        <div class="section-label">Todas las paradas</div>
-        <div id="stops-items"></div>
+        <div id="stops-list">
+          <div class="section-label">Todas las paradas</div>
+          <div id="stops-items"></div>
+        </div>
       </div>
     </div>
   </div>
