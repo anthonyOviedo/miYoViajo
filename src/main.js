@@ -212,8 +212,8 @@ function updateMarkersVisibility() {
 }
 
 function fitRoute(routeIdx) {
-  const route = ROUTES[routeIdx];
-  const bounds = L.latLngBounds(route.stops.map(s => [s.lat, s.lng]));
+  const stops = routeStops[routeIdx];
+  const bounds = L.latLngBounds(stops.map(s => [s.lat, s.lng]));
   map.fitBounds(bounds, { padding: [40, 40] });
 }
 
