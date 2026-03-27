@@ -38,6 +38,7 @@ function initMap() {
   L.control.zoom({ position: 'topright' }).addTo(map);
 
   setupOfflineControl();
+  drawRoutePolylines();
   addAllStopMarkers();
   fitRoute(activeRouteIdx);
 }
