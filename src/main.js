@@ -65,6 +65,7 @@ function initMap() {
 
 // ── Route polylines (Waze style: real road geometry via OSRM) ──
 function drawPolylineForRoute(routeIdx, coords) {
+  routeGeometries[routeIdx] = coords;
   const route = ROUTES[routeIdx];
 
   const shadow = L.polyline(coords, {
