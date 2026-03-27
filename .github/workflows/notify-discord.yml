@@ -27,7 +27,7 @@ jobs:
                   { \"name\": \"👤 Autor\", \"value\": \"$AUTHOR\", \"inline\": true },
                   { \"name\": \"🌿 Rama\", \"value\": \"\`main\`\", \"inline\": true },
                   { \"name\": \"🌐 Netlify\", \"value\": \"https://miyoviajo.netlify.app\", \"inline\": true },
-                  { \"name\": \"☁️ Cloudflare\", \"value\": \"https://miyoviajo.workers.dev\", \"inline\": true }
+                  { \"name\": \"☁️ Cloudflare\", \"value\": \"https://miyoviajo.antony-08.workers.dev\", \"inline\": true }
                 ],
                 \"footer\": { \"text\": \"GitHub Actions\" },
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
@@ -53,7 +53,7 @@ jobs:
       - name: Check Cloudflare
         id: cloudflare
         run: |
-          URL="https://miyoviajo.workers.dev"
+          URL="https://miyoviajo.antony-08.workers.dev"
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$URL")
           TIME=$(curl -s -o /dev/null -w "%{time_total}" --max-time 15 "$URL")
           echo "status=$STATUS" >> $GITHUB_OUTPUT
@@ -73,7 +73,7 @@ jobs:
                   { \"name\": \"🌐 Netlify\", \"value\": \"https://miyoviajo.netlify.app\", \"inline\": true },
                   { \"name\": \"📶 HTTP\", \"value\": \"\`${{ steps.netlify.outputs.status }}\` · ${{ steps.netlify.outputs.time }}s\", \"inline\": true },
                   { \"name\": \"\u200b\", \"value\": \"\u200b\", \"inline\": false },
-                  { \"name\": \"☁️ Cloudflare\", \"value\": \"https://miyoviajo.workers.dev\", \"inline\": true },
+                  { \"name\": \"☁️ Cloudflare\", \"value\": \"https://miyoviajo.antony-08.workers.dev\", \"inline\": true },
                   { \"name\": \"📶 HTTP\", \"value\": \"\`${{ steps.cloudflare.outputs.status }}\` · ${{ steps.cloudflare.outputs.time }}s\", \"inline\": true }
                 ],
                 \"footer\": { \"text\": \"Health Check\" },
@@ -95,7 +95,7 @@ jobs:
                 \"color\": 16753920,
                 \"fields\": [
                   { \"name\": \"$NL_ICON Netlify\", \"value\": \"https://miyoviajo.netlify.app · \`${{ steps.netlify.outputs.status }}\`\", \"inline\": false },
-                  { \"name\": \"$CF_ICON Cloudflare\", \"value\": \"https://miyoviajo.workers.dev · \`${{ steps.cloudflare.outputs.status }}\`\", \"inline\": false }
+                  { \"name\": \"$CF_ICON Cloudflare\", \"value\": \"https://miyoviajo.antony-08.workers.dev · \`${{ steps.cloudflare.outputs.status }}\`\", \"inline\": false }
                 ],
                 \"footer\": { \"text\": \"Health Check\" },
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
@@ -114,7 +114,7 @@ jobs:
                 \"color\": 15158332,
                 \"fields\": [
                   { \"name\": \"🌐 Netlify\", \"value\": \"https://miyoviajo.netlify.app · \`${{ steps.netlify.outputs.status }}\`\", \"inline\": false },
-                  { \"name\": \"☁️ Cloudflare\", \"value\": \"https://miyoviajo.workers.dev · \`${{ steps.cloudflare.outputs.status }}\`\", \"inline\": false }
+                  { \"name\": \"☁️ Cloudflare\", \"value\": \"https://miyoviajo.antony-08.workers.dev · \`${{ steps.cloudflare.outputs.status }}\`\", \"inline\": false }
                 ],
                 \"footer\": { \"text\": \"Health Check\" },
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
