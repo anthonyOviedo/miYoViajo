@@ -573,24 +573,44 @@ function updateBuses() {
   const dayKey = now.getDay() === 0 ? 'domingo' : now.getDay() === 6 ? 'sabado' : 'semana';
   const times = route.schedule[dayKey] || route.schedule.semana;
 
+  const durationMin = parseDurationMin(route.duration);
+
   times.forEach(dep => {
     const depMin = toMin(dep);
     const elapsed = curMin - depMin;
-    if (elapsed < 0 || elapsed > ROUTE_DURATION_MIN) return;
+    if (elapsed < 0 || elapsed > durationMin) return;
 
-    const fraction = elapsed / ROUTE_DURATION_MIN;
+    const fraction = elapsed / durationMin;
     const pt = getPointAlongRoute(geometry, fraction);
     if (!pt) return;
 
-    const icon = makeBusIcon(route.color, pt.bearing, dep);
-    const remaining = Math.round(ROUTE_DURATION_MIN - elapsed);
+    const icon = makeBusIcon(pt.bearing);
+    const arrivalStr = minToHHMM(depMin + durationMin);
+    const remaining = Math.round(durationMin - elapsed);
+    const nearest = nearestStopAtElapsed(activeRouteIdx, elapsed);
+    const origin = routeStops[activeRouteIdx].find(s => s.starts);
+    const dest   = routeStops[activeRouteIdx].find(s => s.ends);
+
     const marker = L.marker([pt.lat, pt.lng], { icon, pane: 'busDots', zIndexOffset: 500 })
       .addTo(map)
       .bindPopup(`
         <div class="popup-route" style="background:${route.color}20;border-left:3px solid ${route.color};padding:4px 8px;border-radius:4px;margin-bottom:6px;font-size:0.72rem;font-weight:600;color:${route.color}">${route.short}</div>
-        <div class="popup-title">Salida ${dep}</div>
-        <div class="popup-sub">En ruta · ${remaining} min restantes</div>
-      `, { maxWidth: 200 });
+        <div class="popup-title" style="margin-bottom:8px">${route.name}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+          <div style="background:#f3f4f8;border-radius:8px;padding:6px 8px">
+            <div style="font-size:0.65rem;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:2px">Salida</div>
+            <div style="font-size:0.95rem;font-weight:700;color:#1a1a2e">${dep}</div>
+            <div style="font-size:0.68rem;color:#6b7280">${origin?.title || ''}</div>
+          </div>
+          <div style="background:#f3f4f8;border-radius:8px;padding:6px 8px">
+            <div style="font-size:0.65rem;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:2px">Llegada</div>
+            <div style="font-size:0.95rem;font-weight:700;color:#1a1a2e">${arrivalStr}</div>
+            <div style="font-size:0.68rem;color:#6b7280">${dest?.title || ''}</div>
+          </div>
+        </div>
+        <div style="font-size:0.78rem;color:#6b7280">Cerca de <strong style="color:#1a1a2e">${nearest.title}</strong></div>
+        <div style="font-size:0.78rem;color:${route.color};font-weight:600;margin-top:2px">${remaining} min restantes</div>
+      `, { maxWidth: 240 });
     busMarkers.push(marker);
   });
 }
