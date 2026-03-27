@@ -715,6 +715,157 @@ function setupEditBar() {
   });
 }
 
+// ── Tracking / Registrar horario ──
+function setupRecordButton() {
+  document.getElementById('record-btn').addEventListener('click', () => {
+    if (trackingSession) stopTracking();
+    else showTrackStartModal();
+  });
+  document.getElementById('record-stop-btn').addEventListener('click', stopTracking);
+  document.getElementById('track-start-cancel').addEventListener('click', () => {
+    document.getElementById('track-start-modal').classList.add('hidden');
+  });
+  document.getElementById('track-start-confirm').addEventListener('click', confirmStartTracking);
+  document.getElementById('summary-close').addEventListener('click', () => {
+    document.getElementById('track-summary-modal').classList.add('hidden');
+  });
+  document.getElementById('summary-send').addEventListener('click', sendSummaryToDiscord);
+}
+
+function showTrackStartModal() {
+  const route = ROUTES[activeRouteIdx];
+  const now = new Date();
+  const curMin = now.getHours() * 60 + now.getMinutes();
+  const dayKey = now.getDay() === 0 ? 'domingo' : now.getDay() === 6 ? 'sabado' : 'semana';
+  const times = route.schedule[dayKey] || route.schedule.semana;
+  const past = times.filter(t => toMin(t) <= curMin);
+  const suggested = past.length > 0 ? past[past.length - 1] : times[0];
+
+  document.getElementById('track-dep-select').innerHTML =
+    times.map(t => `<option value="${t}"${t === suggested ? ' selected' : ''}>${t}</option>`).join('');
+  document.getElementById('track-start-modal').classList.remove('hidden');
+}
+
+function confirmStartTracking() {
+  const depStr = document.getElementById('track-dep-select').value;
+  document.getElementById('track-start-modal').classList.add('hidden');
+
+  const [h, m] = depStr.split(':').map(Number);
+  const now = new Date();
+  const depMs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0).getTime();
+
+  trackingSession = {
+    routeIdx: activeRouteIdx,
+    departureTime: depStr,
+    departureMs: depMs,
+    visited: new Map(),  // stopId → { stop, actualTime, elapsedMin }
+  };
+
+  document.getElementById('record-btn').classList.add('active');
+  document.getElementById('record-bar').classList.remove('hidden');
+  updateRecordBar();
+
+  if ('wakeLock' in navigator) {
+    navigator.wakeLock.request('screen').then(wl => { wakeLock = wl; }).catch(() => {});
+  }
+}
+
+function stopTracking() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+  lastSession = trackingSession;
+  trackingSession = null;
+  document.getElementById('record-btn').classList.remove('active');
+  document.getElementById('record-bar').classList.add('hidden');
+  if (lastSession && lastSession.visited.size > 0) showTrackingSummary();
+}
+
+function updateRecordBar() {
+  if (!trackingSession) return;
+  const count = trackingSession.visited.size;
+  const total = routeStops[trackingSession.routeIdx].length;
+  document.getElementById('record-bar-count').textContent = `${count} / ${total} paradas`;
+}
+
+function checkStopProximity() {
+  if (!trackingSession || !userLatLng) return;
+  const { routeIdx, departureMs, visited } = trackingSession;
+  routeStops[routeIdx].forEach(stop => {
+    if (visited.has(stop.id)) return;
+    if (haversine(userLatLng.lat, userLatLng.lng, stop.lat, stop.lng) > 250) return;
+
+    const elapsedMin = (Date.now() - departureMs) / 60000;
+    const hh = String(Math.floor(elapsedMin / 60)).padStart(2, '0');
+    const mm = String(Math.floor(elapsedMin % 60)).padStart(2, '0');
+    visited.set(stop.id, { stop, actualTime: `${hh}:${mm}`, elapsedMin });
+    updateRecordBar();
+    showRecordToast(stop.title);
+  });
+}
+
+function showRecordToast(title) {
+  const toast = document.getElementById('record-toast');
+  toast.textContent = `Parada: ${title}`;
+  toast.classList.add('visible');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.remove('visible'), 2500);
+}
+
+function showTrackingSummary() {
+  const { routeIdx, departureTime, visited } = lastSession;
+  const stops = [...routeStops[routeIdx]].sort((a, b) => a.time.localeCompare(b.time));
+
+  let rows = '';
+  stops.forEach(stop => {
+    if (!visited.has(stop.id)) return;
+    const { actualTime, elapsedMin } = visited.get(stop.id);
+    const [sh, sm] = stop.time.split(':').map(Number);
+    const schedMin = sh * 60 + sm;
+    const diff = Math.round(elapsedMin - schedMin);
+    const diffStr = diff === 0 ? '=' : diff > 0 ? `+${diff}m` : `${diff}m`;
+    const cls = Math.abs(diff) <= 1 ? 'diff-ok' : diff > 0 ? 'diff-late' : 'diff-early';
+    rows += `<tr><td>${stop.title}</td><td>${stop.time}</td><td>${actualTime}</td><td class="${cls}">${diffStr}</td></tr>`;
+  });
+
+  document.getElementById('summary-dep').textContent = departureTime;
+  document.getElementById('summary-count').textContent = visited.size;
+  document.getElementById('summary-rows').innerHTML = rows;
+  document.getElementById('track-summary-modal').classList.remove('hidden');
+}
+
+async function sendSummaryToDiscord() {
+  if (!lastSession || !DISCORD_WEBHOOK) return;
+  const { routeIdx, departureTime, visited } = lastSession;
+  const route = ROUTES[routeIdx];
+  const stops = [...routeStops[routeIdx]].sort((a, b) => a.time.localeCompare(b.time));
+
+  let lines = [`**🚌 ${route.name}** — Salida ${departureTime}`, '```'];
+  stops.forEach(stop => {
+    if (!visited.has(stop.id)) return;
+    const { actualTime, elapsedMin } = visited.get(stop.id);
+    const [sh, sm] = stop.time.split(':').map(Number);
+    const diff = Math.round(elapsedMin - sh * 60 - sm);
+    const diffStr = diff === 0 ? '  ok' : diff > 0 ? `+${diff}m` : `${diff}m`;
+    lines.push(`${actualTime}  ${diffStr.padStart(4)}  ${stop.title}`);
+  });
+  lines.push('```');
+
+  try {
+    const btn = document.getElementById('summary-send');
+    btn.textContent = 'Enviando...';
+    btn.disabled = true;
+    await fetch(DISCORD_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: lines.join('\n') }),
+    });
+    btn.textContent = '✓ Enviado';
+    setTimeout(() => { btn.textContent = 'Enviar a Discord'; btn.disabled = false; }, 2000);
+  } catch {
+    document.getElementById('summary-send').textContent = 'Error — reintentar';
+    document.getElementById('summary-send').disabled = false;
+  }
+}
+
 // ── Boot ──
 initMap();
 renderRouteDropdown();
