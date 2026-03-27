@@ -12,6 +12,7 @@
     "leaflet.offline": "^3.2.1"
   },
   "devDependencies": {
-    "vite": "^6.3.1"
+    "vite": "^6.3.1",
+    "wrangler": "^4.78.0"
   }
 }
