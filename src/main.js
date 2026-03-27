@@ -53,6 +53,7 @@ function initMap() {
   map.createPane('routeCasing').style.zIndex = 395;
   map.createPane('routeLine').style.zIndex  = 400;
   map.createPane('stopDots').style.zIndex   = 410;
+  map.createPane('busDots').style.zIndex    = 420;
 
   L.control.zoom({ position: 'topright' }).addTo(map);
 
