@@ -29,6 +29,8 @@ let userMarker = null;
 let activeRouteIdx = 0;
 let stopMarkers = [];      // { marker, routeIdx, stopId }
 let routePolylines = [];   // { shadow, casing, line, routeIdx }
+let routeGeometries = [];  // lat/lng arrays from OSRM per route
+let busMarkers = [];       // live bus markers
 let editMode = false;
 let pendingLatLng = null;
 
