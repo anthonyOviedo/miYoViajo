@@ -19,15 +19,13 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"embeds\": [{
-                \"title\": \"🚌 MiYoViajo — Deploy en progreso\",
-                \"description\": \"Nuevo push detectado, Netlify y Cloudflare están desplegando...\",
-                \"color\": 16776960,
+                \"title\": \"🚌 MiYoViajo — Nuevo push en main\",
+                \"description\": \"Código actualizado. El deploy debe ejecutarse manualmente desde GitHub Actions.\",
+                \"color\": 3447003,
                 \"fields\": [
                   { \"name\": \"📝 Commit\", \"value\": \"\`$SHORT_SHA\` $COMMIT_MSG\", \"inline\": false },
                   { \"name\": \"👤 Autor\", \"value\": \"$AUTHOR\", \"inline\": true },
-                  { \"name\": \"🌿 Rama\", \"value\": \"\`main\`\", \"inline\": true },
-                  { \"name\": \"🌐 Netlify\", \"value\": \"https://miyoviajo.netlify.app\", \"inline\": true },
-                  { \"name\": \"☁️ Cloudflare\", \"value\": \"https://miyoviajo.antony-08.workers.dev\", \"inline\": true }
+                  { \"name\": \"🌿 Rama\", \"value\": \"\`main\`\", \"inline\": true }
                 ],
                 \"footer\": { \"text\": \"GitHub Actions\" },
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
