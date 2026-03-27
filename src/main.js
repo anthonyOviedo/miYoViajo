@@ -542,21 +542,32 @@ function getPointAlongRoute(geometry, fraction) {
 const BUS_YELLOW = '#f59e0b';
 
 function makeBusIcon(bearing) {
+  // SVG drawn facing right (east=90°), so offset bearing by -90 to align with map
+  const rot = bearing - 90;
   return L.divIcon({
     className: '',
-    html: `<div class="bus-live" style="--bus-color:${BUS_YELLOW};transform:rotate(${bearing}deg)">
-      <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-        <rect x="2" y="4" width="16" height="11" rx="2" fill="white"/>
-        <rect x="3" y="5" width="14" height="7" rx="1" fill="${BUS_YELLOW}"/>
-        <rect x="3" y="13" width="14" height="1" fill="${BUS_YELLOW}"/>
-        <circle cx="5.5" cy="15.5" r="1.5" fill="#333"/>
-        <circle cx="14.5" cy="15.5" r="1.5" fill="#333"/>
-        <rect x="4" y="6" width="5" height="3" rx="0.5" fill="rgba(255,255,255,0.75)"/>
-        <rect x="11" y="6" width="5" height="3" rx="0.5" fill="rgba(255,255,255,0.75)"/>
+    html: `<div class="bus-live" style="transform:rotate(${rot}deg)">
+      <svg viewBox="0 0 32 18" xmlns="http://www.w3.org/2000/svg" width="32" height="18">
+        <!-- Body -->
+        <rect x="1" y="2" width="30" height="12" rx="2.5" fill="white"/>
+        <rect x="2" y="3" width="28" height="10" rx="1.5" fill="${BUS_YELLOW}"/>
+        <!-- Windows -->
+        <rect x="3"  y="4" width="4" height="4" rx="0.8" fill="rgba(255,255,255,0.85)"/>
+        <rect x="9"  y="4" width="4" height="4" rx="0.8" fill="rgba(255,255,255,0.85)"/>
+        <rect x="15" y="4" width="4" height="4" rx="0.8" fill="rgba(255,255,255,0.85)"/>
+        <!-- Front windshield -->
+        <rect x="23" y="4" width="5" height="5" rx="0.8" fill="rgba(255,255,255,0.95)"/>
+        <!-- Front bumper -->
+        <rect x="29" y="7" width="2" height="2" rx="1" fill="#ccc"/>
+        <!-- Wheels -->
+        <circle cx="8"  cy="15.5" r="2.5" fill="#222"/>
+        <circle cx="8"  cy="15.5" r="1"   fill="#555"/>
+        <circle cx="23" cy="15.5" r="2.5" fill="#222"/>
+        <circle cx="23" cy="15.5" r="1"   fill="#555"/>
       </svg>
     </div>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
+    iconSize: [32, 18],
+    iconAnchor: [16, 9],
   });
 }
 
