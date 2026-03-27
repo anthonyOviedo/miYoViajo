@@ -877,5 +877,6 @@ setupDraggablePanel();
 setupDownloadButton();
 setupEditBar();
 setupEditModal();
+setupRecordButton();
 // buses start after route geometry loads (~1s)
 setTimeout(startBusSimulation, 1500);
