@@ -351,9 +351,8 @@ function haversine(lat1, lng1, lat2, lng2) {
 
 function updateNearestStop() {
   if (!userLatLng) return;
-  const route = ROUTES[activeRouteIdx];
   let nearest = null, minDist = Infinity;
-  route.stops.forEach((s) => {
+  routeStops[activeRouteIdx].forEach((s) => {
     const d = haversine(userLatLng.lat, userLatLng.lng, s.lat, s.lng);
     if (d < minDist) { minDist = d; nearest = s; }
   });
