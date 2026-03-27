@@ -89,16 +89,19 @@ function updatePolylinesVisibility() {
 
 // ── Stop markers ──
 function makeStopIcon(color, isTerminal) {
-  const size = isTerminal ? 11 : 5;
+  const size = isTerminal ? 14 : 8;
   const bg   = isTerminal ? color : '#fff';
-  const bw   = isTerminal ? 2.5 : 1.5;
+  const bw   = isTerminal ? 3 : 2;
   const bc   = isTerminal ? '#fff' : color;
+  const shadow = isTerminal
+    ? `box-shadow:0 0 0 3px ${color}33, 0 2px 6px rgba(0,0,0,0.3);`
+    : `box-shadow:0 1px 4px rgba(0,0,0,0.28);`;
   return L.divIcon({
     className: '',
     html: `<div style="
       width:${size}px;height:${size}px;border-radius:50%;
       background:${bg};border:${bw}px solid ${bc};
-      box-shadow:0 1px 3px rgba(0,0,0,0.22);
+      ${shadow}
       pointer-events:none;
     "></div>`,
     iconSize:   [size, size],
