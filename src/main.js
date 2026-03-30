@@ -1,5 +1,4 @@
 import L from 'leaflet';
-import { tileLayerOffline, savetiles } from 'leaflet.offline';
 import { ROUTES } from './stops.js';
 
 // ── Leaflet icon fix ──
@@ -20,12 +19,11 @@ const routeStops = ROUTES.map((route, i) => {
   } catch { return [...route.stops]; }
 });
 
-const DISCORD_WEBHOOK = import.meta.env.VITE_DISCORD_WEBHOOK;
+const DISCORD_SUMMARY_ENDPOINT = '/api/discord-summary';
 
 // ── State ──
 let map = null;
-let offlineLayer = null;
-let saveTilesControl = null;
+let tileLayer = null;
 let userLatLng = null;
 let userMarker = null;
 let activeRouteIdx = 0;
@@ -48,9 +46,9 @@ function initMap() {
     attributionControl: true,
   });
 
-  offlineLayer = tileLayerOffline(
+  tileLayer = L.tileLayer(
     'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19, crossOrigin: true }
+    { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19 }
   ).addTo(map);
 
   // Custom panes for proper z-ordering (shadow → casing → route → stops)
@@ -62,7 +60,6 @@ function initMap() {
 
   L.control.zoom({ position: 'topright' }).addTo(map);
 
-  setupOfflineControl();
   drawRoutePolylines();
   addAllStopMarkers();
   fitRoute(activeRouteIdx);
@@ -173,7 +170,7 @@ function addStopMarker(stop, routeIdx) {
     .addTo(map)
     .bindPopup(buildPopup(stop, route, routeIdx), { maxWidth: 230 })
     .on('click', () => {
-      if (editMode && routeIdx === activeRouteIdx) {
+      if (import.meta.env.VITE_EDITOR_MODE === 'true' && editMode && routeIdx === activeRouteIdx) {
         showDeleteConfirm(stop.id, routeIdx, marker);
       } else {
         setActiveRoute(routeIdx);
@@ -202,11 +199,13 @@ function showDeleteConfirm(stopId, routeIdx, marker) {
   `, { maxWidth: 180 }).openPopup();
 }
 
-window._deleteStop = (stopId, routeIdx) => {
-  routeStops[routeIdx] = routeStops[routeIdx].filter(s => s.id !== stopId);
-  map.closePopup();
-  rebuildMarkersAndRoute(routeIdx);
-};
+if (import.meta.env.VITE_EDITOR_MODE === 'true') {
+  window._deleteStop = (stopId, routeIdx) => {
+    routeStops[routeIdx] = routeStops[routeIdx].filter(s => s.id !== stopId);
+    map.closePopup();
+    rebuildMarkersAndRoute(routeIdx);
+  };
+}
 
 function updateMarkersVisibility() {
   stopMarkers.forEach(({ marker, routeIdx }) => {
@@ -295,31 +294,45 @@ function renderScheduleChips() {
 
 // ── Stops list ──
 function renderStopsList() {
-  const select = document.getElementById('stops-select');
-  select.innerHTML = '';
+  const container = document.getElementById('stops-items');
+  container.innerHTML = '';
   const route = ROUTES[activeRouteIdx];
   const sorted = [...routeStops[activeRouteIdx]].sort((a, b) => a.time.localeCompare(b.time));
 
-  sorted.forEach((stop) => {
-    const opt = document.createElement('option');
-    opt.value = stop.id;
-    opt.textContent = `${stop.title}  (+${stop.time})`;
-    select.appendChild(opt);
+  sorted.forEach((stop, idx) => {
+    const isTerminal = stop.starts || stop.ends;
+    const isLast = idx === sorted.length - 1;
+    const item = document.createElement('div');
+    item.className = 'stop-item';
+    item.dataset.id = stop.id;
+    item.innerHTML = `
+      <div class="stop-timeline">
+        <div class="stop-dot ${isTerminal ? 'terminal' : ''}" style="${isTerminal ? `--dot-color:${route.color}` : ''}"></div>
+        ${!isLast ? '<div class="stop-line"></div>' : ''}
+      </div>
+      <div class="stop-info">
+        <div class="stop-name">${stop.title}</div>
+        <div class="stop-meta">${stop.address}</div>
+      </div>
+      <div class="stop-time-badge">+${stop.time}</div>
+    `;
+    item.addEventListener('click', () => {
+      map.setView([stop.lat, stop.lng], 16, { animate: true });
+      expandPanel('half');
+    });
+    container.appendChild(item);
   });
-
-  select.style.borderColor = route.color;
-
-  select.onchange = () => {
-    const stop = route.stops.find(s => s.id === select.value);
-    if (!stop) return;
-    map.setView([stop.lat, stop.lng], 16, { animate: true });
-    expandPanel('half');
-  };
 }
 
 function highlightStop(id) {
-  const select = document.getElementById('stops-select');
-  if (select) select.value = id;
+  document.querySelectorAll('.stop-item').forEach(el => el.classList.remove('highlighted'));
+  document.querySelectorAll('.stop-dot').forEach(el => el.classList.remove('nearest'));
+  const item = document.querySelector(`.stop-item[data-id="${id}"]`);
+  if (item) {
+    item.classList.add('highlighted');
+    item.querySelector('.stop-dot')?.classList.add('nearest');
+    item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 // ── Geolocation ──
@@ -373,52 +386,6 @@ function updateNearestStop() {
 }
 
 // ── Offline ──
-function setupOfflineControl() {
-  saveTilesControl = savetiles(offlineLayer, {
-    zoomlevels: [6, 7, 8, 9, 10, 11, 12, 13, 14],
-    maxZoom: 14,
-    bounds: CR_BOUNDS,
-    confirm(layer, cb) { cb(); },
-    confirmRemoval(layer, cb) { if (confirm('¿Eliminar el mapa descargado?')) cb(); },
-  });
-
-  offlineLayer.on('savestart', (e) => updateDownloadUI('downloading', 0, e._tilesforSave?.length || 0));
-  offlineLayer.on('savetileend', (e) => updateDownloadUI('downloading', e._tilestoSave - (e._tilesforSave?.length || 0), e._tilestoSave));
-  offlineLayer.on('loadend', () => { updateDownloadUI('done'); });
-  offlineLayer.on('tilesremoved', () => updateDownloadUI('idle'));
-}
-
-function updateDownloadUI(state, saved = 0, total = 0) {
-  const btn = document.getElementById('download-btn');
-  const progress = document.getElementById('download-progress');
-  const fill = document.getElementById('download-fill');
-  const label = document.getElementById('download-label');
-  if (!btn) return;
-
-  if (state === 'downloading') {
-    btn.disabled = true;
-    btn.innerHTML = '⬇ Descargando...';
-    if (progress) { progress.style.display = 'block'; const pct = total > 0 ? Math.round((saved / total) * 100) : 0; if (fill) fill.style.width = pct + '%'; if (label) label.textContent = `${saved} / ${total} tiles (${pct}%)`; }
-  } else if (state === 'done') {
-    btn.disabled = false;
-    btn.className = 'saved';
-    btn.innerHTML = '✓ Mapa guardado';
-    if (progress) progress.style.display = 'none';
-  } else {
-    btn.disabled = false;
-    btn.className = '';
-    btn.innerHTML = '⬇ Descargar mapa';
-    if (progress) progress.style.display = 'none';
-  }
-}
-
-function setupDownloadButton() {
-  document.getElementById('download-btn').addEventListener('click', () => {
-    const btn = document.getElementById('download-btn');
-    if (btn.classList.contains('saved')) { saveTilesControl._rmTiles(); }
-    else { map.fitBounds(CR_BOUNDS); setTimeout(() => saveTilesControl._saveTiles(), 400); }
-  });
-}
 
 // ── Center button ──
 function setupCenterButton() {
@@ -884,7 +851,7 @@ function showTrackingSummary() {
 }
 
 async function sendSummaryToDiscord() {
-  if (!lastSession || !DISCORD_WEBHOOK) return;
+  if (!lastSession) return;
   const { routeIdx, departureTime, visited } = lastSession;
   const route = ROUTES[routeIdx];
   const stops = [...routeStops[routeIdx]].sort((a, b) => a.time.localeCompare(b.time));
@@ -904,7 +871,7 @@ async function sendSummaryToDiscord() {
     const btn = document.getElementById('summary-send');
     btn.textContent = 'Enviando...';
     btn.disabled = true;
-    await fetch(DISCORD_WEBHOOK, {
+    await fetch(DISCORD_SUMMARY_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: lines.join('\n') }),
@@ -925,9 +892,13 @@ renderScheduleChips();
 startGeolocation();
 setupCenterButton();
 setupDraggablePanel();
-setupDownloadButton();
-setupEditBar();
-setupEditModal();
-setupRecordButton();
+if (import.meta.env.VITE_EDITOR_MODE === 'true') {
+  setupEditBar();
+  setupEditModal();
+  setupRecordButton();
+} else {
+  document.getElementById('edit-btn').style.display = 'none';
+  document.getElementById('record-btn').style.display = 'none';
+}
 // buses start after route geometry loads (~1s)
 setTimeout(startBusSimulation, 1500);
