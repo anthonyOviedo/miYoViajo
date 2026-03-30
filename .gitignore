@@ -1,6 +1,9 @@
 node_modules/
 dist/
+dist-public/
+dist-admin/
 .env
 .env.local
+.claude/settings.local.json
 .claude-context.md
 .DS_Store

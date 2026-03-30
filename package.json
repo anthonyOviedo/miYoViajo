@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:public": "VITE_EDITOR_MODE=false vite build --outDir dist-public",
+    "build:admin": "VITE_EDITOR_MODE=true vite build --outDir dist-admin",
     "preview": "vite preview"
   },
   "dependencies": {
