@@ -100,12 +100,18 @@ async function fetchOSRM(routeIdx) {
 
   const coordStr = `${origin.lng},${origin.lat};${dest.lng},${dest.lat}`;
   const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
-  const resp = await fetch(url);
-  const data = await resp.json();
-  if (data.routes?.[0]) {
-    return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const resp = await fetch(url, { signal: controller.signal });
+    const data = await resp.json();
+    if (data.routes?.[0]) {
+      return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    }
+    return null;
+  } finally {
+    clearTimeout(timeout);
   }
-  return null;
 }
 
 async function drawRoutePolylines() {
@@ -120,6 +126,7 @@ async function drawRoutePolylines() {
       drawPolylineForRoute(routeIdx, fallback);
     }
   }
+  updateBuses();
 }
 
 function updatePolylinesVisibility() {
@@ -170,7 +177,7 @@ function addStopMarker(stop, routeIdx) {
     .addTo(map)
     .bindPopup(buildPopup(stop, route, routeIdx), { maxWidth: 230 })
     .on('click', () => {
-      if (import.meta.env.VITE_EDITOR_MODE === 'true' && editMode && routeIdx === activeRouteIdx) {
+      if (editMode && routeIdx === activeRouteIdx) {
         showDeleteConfirm(stop.id, routeIdx, marker);
       } else {
         setActiveRoute(routeIdx);
@@ -199,13 +206,11 @@ function showDeleteConfirm(stopId, routeIdx, marker) {
   `, { maxWidth: 180 }).openPopup();
 }
 
-if (import.meta.env.VITE_EDITOR_MODE === 'true') {
-  window._deleteStop = (stopId, routeIdx) => {
-    routeStops[routeIdx] = routeStops[routeIdx].filter(s => s.id !== stopId);
-    map.closePopup();
-    rebuildMarkersAndRoute(routeIdx);
-  };
-}
+window._deleteStop = (stopId, routeIdx) => {
+  routeStops[routeIdx] = routeStops[routeIdx].filter(s => s.id !== stopId);
+  map.closePopup();
+  rebuildMarkersAndRoute(routeIdx);
+};
 
 function updateMarkersVisibility() {
   stopMarkers.forEach(({ marker, routeIdx }) => {
@@ -892,13 +897,8 @@ renderScheduleChips();
 startGeolocation();
 setupCenterButton();
 setupDraggablePanel();
-if (import.meta.env.VITE_EDITOR_MODE === 'true') {
-  setupEditBar();
-  setupEditModal();
-  setupRecordButton();
-} else {
-  document.getElementById('edit-btn').style.display = 'none';
-  document.getElementById('record-btn').style.display = 'none';
-}
+setupEditBar();
+setupEditModal();
+setupRecordButton();
 // buses start after route geometry loads (~1s)
 setTimeout(startBusSimulation, 1500);
