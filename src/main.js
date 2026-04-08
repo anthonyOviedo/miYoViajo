@@ -205,23 +205,21 @@ function addStopMarker(stop, routeIdx) {
     .addTo(map)
     .bindPopup(buildPopup(stop, route, routeIdx), { maxWidth: 230 })
     .on('click', () => {
-      if (editMode && routeIdx === activeRouteIdx) {
-        showDeleteConfirm(stop.id, routeIdx, marker);
-      } else {
-        setActiveRoute(routeIdx);
-        highlightStop(stop.id);
-      }
+      setActiveRoute(routeIdx);
+      highlightStop(stop.id);
     });
   stopMarkers.push({ marker, routeIdx, stopId: stop.id });
 }
 
 function buildPopup(stop, route, routeIdx) {
   const origin = routeStops[routeIdx].find(s => s.starts);
+  const deleteBtn = trackingSession ? '' : `<button onclick="window._deleteStop(${stop.id},${routeIdx})" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:600;margin-top:8px">🗑️ Eliminar</button>`;
   return `
     <div class="popup-route" style="background:${route.color}20;border-left:3px solid ${route.color};padding:4px 8px;border-radius:4px;margin-bottom:6px;font-size:0.72rem;font-weight:600;color:${route.color}">${route.short}</div>
     <div class="popup-title">${stop.title}</div>
     <div class="popup-sub">${stop.address}</div>
     <div class="popup-time">+${stop.time} desde ${stop.starts ? 'inicio' : origin?.title || 'inicio'}</div>
+    ${deleteBtn}
   `;
 }
 
