@@ -508,6 +508,8 @@ function syncBoardedBusToUser() {
   if (!boardedBus || !userLatLng) return;
   const m = busMarkers.find(mk => mk._routeIdx === boardedBus.routeIdx && mk._depMin === boardedBus.depMin);
   if (m) m.setLatLng(userLatLng);
+  // Mantener mapa centrado en el bus abordado
+  map.setView(userLatLng, map.getZoom(), { animate: false });
 }
 
 function startGeolocation() {
