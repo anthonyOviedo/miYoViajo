@@ -42,6 +42,8 @@ let lastSession = null;      // kept for summary after stopping
 let wakeLock = null;
 let recordingTracePoints = [];  // puntos del trazo en tiempo real
 let recordingTracePolyline = null;  // polyline verde del trazo
+let lastMapDragTime = 0;  // última vez que el usuario arrastró el mapa
+const AUTOCENTER_DELAY = 5000;  // 5 segundos antes de recenter en el bus
 
 // ── Map ──
 function initMap() {
@@ -67,6 +69,11 @@ function initMap() {
   map.createPane('busDots').style.zIndex    = 420;
 
   L.control.zoom({ position: 'topright' }).addTo(map);
+
+  // Detectar cuando el usuario arrastra el mapa para reiniciar cooldown
+  map.on('dragend', () => {
+    lastMapDragTime = Date.now();
+  });
 
   drawRoutePolylines();
   addAllStopMarkers();
@@ -506,8 +513,13 @@ function syncBoardedBusToUser() {
   if (!boardedBus || !userLatLng) return;
   const m = busMarkers.find(mk => mk._routeIdx === boardedBus.routeIdx && mk._depMin === boardedBus.depMin);
   if (m) m.setLatLng(userLatLng);
-  // Mantener mapa centrado en el bus abordado
-  map.setView(userLatLng, map.getZoom(), { animate: false });
+
+  // Mantener mapa centrado en el bus, pero respetando cooldown de arrastre
+  const now = Date.now();
+  const timeSinceLastDrag = now - lastMapDragTime;
+  if (timeSinceLastDrag >= AUTOCENTER_DELAY) {
+    map.setView(userLatLng, map.getZoom(), { animate: false });
+  }
 }
 
 function startGeolocation() {
