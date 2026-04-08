@@ -1414,7 +1414,18 @@ if (trackingSession) {
 }
 
 // buses start after route geometry loads (~1s)
-setTimeout(() => { startBusSimulation(); restoreBoardedFromCookie(); }, 1500);
+setTimeout(() => {
+  startBusSimulation();
+  restoreBoardedFromCookie();
+
+  // Ocultar loading screen elegantemente
+  setTimeout(() => {
+    const loadingScreen = document.getElementById('loading-screen');
+    if (loadingScreen) {
+      loadingScreen.classList.add('hidden');
+    }
+  }, 200);
+}, 1500);
 
 // ── PWA: Detectar actualizaciones del Service Worker ──
 window.addEventListener('sw-update-ready', () => {
