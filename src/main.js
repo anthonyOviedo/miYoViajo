@@ -47,7 +47,7 @@ let recordingTracePolyline = null;  // polyline verde del trazo
 function initMap() {
   map = L.map('map', {
     center: [10.0, -84.2],
-    zoom: 11,
+    zoom: 9,
     zoomControl: false,
     attributionControl: true,
   });
