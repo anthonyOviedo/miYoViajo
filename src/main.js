@@ -54,8 +54,10 @@ function initMap() {
 
   tileLayer = L.tileLayer(
     'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19 }
+    { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 16 }
   ).addTo(map);
+
+  map.setMaxZoom(16);
 
   // Custom panes for proper z-ordering (shadow → casing → route → stops)
   map.createPane('routeShadow').style.zIndex = 390;
