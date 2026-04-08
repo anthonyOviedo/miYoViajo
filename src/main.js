@@ -49,7 +49,7 @@ const AUTOCENTER_DELAY = 5000;  // 5 segundos antes de recenter en el bus
 function initMap() {
   map = L.map('map', {
     center: [10.0, -84.2],
-    zoom: 15,
+    zoom: 16,
     zoomControl: false,
     attributionControl: true,
   });
