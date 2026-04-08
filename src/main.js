@@ -1363,3 +1363,29 @@ if (trackingSession) {
 
 // buses start after route geometry loads (~1s)
 setTimeout(() => { startBusSimulation(); restoreBoardedFromCookie(); }, 1500);
+
+// ── PWA: Detectar actualizaciones del Service Worker ──
+window.addEventListener('sw-update-ready', () => {
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    background: #0ea5e9;
+    color: white;
+    padding: 14px 16px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 5000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+  `;
+  notification.innerHTML = `
+    <span>Actualización disponible</span>
+    <button onclick="window.location.reload()" style="background:#fff;color:#0ea5e9;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600">Recargar</button>
+  `;
+  document.body.appendChild(notification);
+});

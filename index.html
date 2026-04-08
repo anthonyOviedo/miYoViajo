@@ -3,10 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#ffffff" />
+  <meta name="theme-color" content="#00a878" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MiYoViajo" />
   <title>MiYoViajo</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
   <link rel="preconnect" href="https://a.basemaps.cartocdn.com" />
   <link rel="preconnect" href="https://b.basemaps.cartocdn.com" />
   <link rel="preconnect" href="https://c.basemaps.cartocdn.com" />
@@ -40,11 +45,6 @@
     </header>
 
     <!-- Record bar -->
-    <div id="record-bar" class="hidden">
-      <span class="record-dot"></span>
-      <span id="record-bar-count">0 / 0 paradas</span>
-      <button id="record-stop-btn">Finalizar</button>
-    </div>
 
     <!-- Track start modal -->
     <div id="track-start-modal" class="hidden">
@@ -131,14 +131,63 @@
           <div id="schedule-chips"></div>
         </div>
 
-        <div id="stops-list">
-          <div class="section-label">Paradas</div>
-          <div id="stops-items"></div>
+        <div id="boarded-section" class="hidden">
+          <div class="section-label">Bus abordado</div>
+          <div id="boarded-route" style="font-weight:700;color:#1a1a2e;margin-bottom:6px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="background:#f3f4f8;border-radius:8px;padding:8px">
+              <div style="font-size:0.65rem;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:2px">Salida</div>
+              <div id="boarded-dep" style="font-size:1rem;font-weight:700;color:#1a1a2e"></div>
+            </div>
+            <div style="background:#f3f4f8;border-radius:8px;padding:8px">
+              <div style="font-size:0.65rem;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:2px">Llegada registrada</div>
+              <div id="boarded-arr" style="font-size:1rem;font-weight:700;color:#1a1a2e"></div>
+              <div id="boarded-arr-meta" style="font-size:0.68rem;color:#6b7280"></div>
+            </div>
+          </div>
+          <div style="background:#f3f4f8;border-radius:8px;padding:8px;margin-top:8px">
+            <div style="font-size:0.65rem;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:2px">ETA tráfico libre (OSRM)</div>
+            <div id="boarded-osrm" style="font-size:1rem;font-weight:700;color:#1a1a2e">—</div>
+          </div>
         </div>
+
       </div>
     </div>
   </div>
 
   <script type="module" src="/src/main.js"></script>
+
+  <!-- Registrar Service Worker para PWA -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then((reg) => {
+          console.log('✓ Service Worker registrado:', reg);
+
+          // Escuchar actualizaciones
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('✓ Actualización disponible');
+                // Opcional: mostrar notificación al usuario
+                window.dispatchEvent(new CustomEvent('sw-update-ready'));
+              }
+            });
+          });
+        })
+        .catch((err) => {
+          console.warn('✗ Error registrando Service Worker:', err);
+        });
+
+      // Escuchar mensajes del Service Worker
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data.type === 'SYNC_TRACKING') {
+          console.log('[APP] Mensaje de SW:', event.data.message);
+          // La app continúa detectando paradas automáticamente
+        }
+      });
+    }
+  </script>
 </body>
 </html>
