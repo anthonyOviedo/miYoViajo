@@ -1,5 +1,6 @@
 import L from 'leaflet';
 import { ROUTES } from './stops.js';
+import cachedGeometries from './route-geometries.json';
 
 // ── Leaflet icon fix ──
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png?url';
@@ -34,8 +35,13 @@ let busMarkers = [];       // live bus markers
 let editMode = false;
 let pendingLatLng = null;
 let trackingSession = null;  // active recording session
+let boardedBus = null;       // { routeIdx, dep, depMin } — bus que sigue al usuario
+let lastMovementSample = null; // { lat, lng, t } para calcular velocidad
+let movementPromptShown = false;
 let lastSession = null;      // kept for summary after stopping
 let wakeLock = null;
+let recordingTracePoints = [];  // puntos del trazo en tiempo real
+let recordingTracePolyline = null;  // polyline verde del trazo
 
 // ── Map ──
 function initMap() {
@@ -114,15 +120,16 @@ async function fetchOSRM(routeIdx) {
   }
 }
 
-async function drawRoutePolylines() {
+function drawRoutePolylines() {
   for (let routeIdx = 0; routeIdx < ROUTES.length; routeIdx++) {
-    const fallback = [...routeStops[routeIdx]]
-      .sort((a, b) => a.time.localeCompare(b.time))
-      .map(s => [s.lat, s.lng]);
-    try {
-      const coords = await fetchOSRM(routeIdx);
-      drawPolylineForRoute(routeIdx, coords || fallback);
-    } catch {
+    const slug = ROUTES[routeIdx].slug;
+    const cached = cachedGeometries[slug];
+    if (cached) {
+      drawPolylineForRoute(routeIdx, cached);
+    } else {
+      const fallback = [...routeStops[routeIdx]]
+        .sort((a, b) => a.time.localeCompare(b.time))
+        .map(s => [s.lat, s.lng]);
       drawPolylineForRoute(routeIdx, fallback);
     }
   }
@@ -132,9 +139,28 @@ async function drawRoutePolylines() {
 function updatePolylinesVisibility() {
   routePolylines.forEach(({ shadow, casing, line, routeIdx }) => {
     const active = routeIdx === activeRouteIdx;
+    const recording = trackingSession && routeIdx === trackingSession.routeIdx;
+
     shadow.setStyle({ opacity: active ? 1 : 0 });
     casing.setStyle({ opacity: active ? 1 : 0.15 });
-    line.setStyle({ opacity: active ? 1 : 0.15 });
+
+    // Si se está grabando, usa color especial (amarillo/naranja)
+    const lineColor = recording ? '#f59e0b' : ROUTES[routeIdx].color;
+    const lineOpacity = active ? 1 : 0.15;
+    const lineWeight = recording ? 12 : 8;  // más grueso cuando se graba
+
+    line.setStyle({
+      color: lineColor,
+      opacity: lineOpacity,
+      weight: lineWeight,
+    });
+
+    // Agregar clase CSS para animación si se está grabando
+    if (recording) {
+      line.getElement()?.classList.add('recording-route');
+    } else {
+      line.getElement()?.classList.remove('recording-route');
+    }
   });
 }
 
@@ -212,6 +238,53 @@ window._deleteStop = (stopId, routeIdx) => {
   rebuildMarkersAndRoute(routeIdx);
 };
 
+window._abordarBus = (routeIdx, depStr, depMin) => {
+  if (readBoardedCookie()) return; // ya hay un bus abordado en esta sesión
+  boardedBus = { routeIdx, dep: depStr, depMin };
+  writeBoardedCookie(boardedBus);
+  syncBoardedBusToUser();
+  updateBuses();
+  renderBoardedPanel();
+  const nearestToUser = nearestStopToUser(routeIdx);
+  const infoEl = document.getElementById(`abordar-info-${depMin}`);
+  if (!nearestToUser) {
+    if (infoEl) infoEl.innerHTML = `<div style="font-size:0.75rem;color:#ef4444">Sin ubicación GPS disponible</div>`;
+    return;
+  }
+  const route = ROUTES[routeIdx];
+  const now = new Date();
+  const curMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const elapsed = curMin - depMin;
+  const etaMin = Math.round(toMin(nearestToUser.time) - elapsed);
+  if (infoEl) {
+    infoEl.innerHTML = `
+      <div style="background:#f3f4f8;border-radius:8px;padding:6px 8px">
+        <div style="font-size:0.65rem;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:2px">Tu parada más cercana</div>
+        <div style="font-size:0.82rem;font-weight:700;color:#1a1a2e">${nearestToUser.title}</div>
+        <div style="font-size:0.78rem;color:${route.color};font-weight:600;margin-top:2px">${etaMin <= 0 ? 'Ya pasó' : `Llega en ${etaMin} min`}</div>
+      </div>`;
+  }
+
+  // Auto-iniciar grabación de ruta para esta salida
+  if (!trackingSession) {
+    const [h, m] = depStr.split(':').map(Number);
+    const depMs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0).getTime();
+    trackingSession = {
+      routeIdx,
+      departureTime: depStr,
+      departureMs: depMs,
+      visited: new Map(),
+    };
+    document.getElementById('record-btn').classList.add('active');
+    document.getElementById('record-bar')?.classList.remove('hidden');
+    updateRecordBar();
+    if ('wakeLock' in navigator) {
+      navigator.wakeLock.request('screen').then(wl => { wakeLock = wl; }).catch(() => {});
+    }
+    checkStopProximity();
+  }
+};
+
 function updateMarkersVisibility() {
   stopMarkers.forEach(({ marker, routeIdx }) => {
     const el = marker.getElement();
@@ -222,10 +295,12 @@ function updateMarkersVisibility() {
   updatePolylinesVisibility();
 }
 
-function fitRoute(routeIdx) {
+function fitRoute(routeIdx, zoom = false) {
   const stops = routeStops[routeIdx];
   const bounds = L.latLngBounds(stops.map(s => [s.lat, s.lng]));
-  map.fitBounds(bounds, { padding: [40, 40] });
+  // Si zoom=true, acerca más (padding más pequeño)
+  const padding = zoom ? [0, 0] : [40, 40];
+  map.fitBounds(bounds, { padding });
 }
 
 // ── Route dropdown ──
@@ -256,6 +331,7 @@ function setActiveRoute(idx) {
   document.getElementById('route-select').value = idx;
   updateDropdownColor();
   updateMarkersVisibility();
+  updatePolylinesVisibility();
   renderStopsList();
   renderScheduleChips();
   updateNearestStop();
@@ -300,6 +376,7 @@ function renderScheduleChips() {
 // ── Stops list ──
 function renderStopsList() {
   const container = document.getElementById('stops-items');
+  if (!container) return;
   container.innerHTML = '';
   const route = ROUTES[activeRouteIdx];
   const sorted = [...routeStops[activeRouteIdx]].sort((a, b) => a.time.localeCompare(b.time));
@@ -359,6 +436,76 @@ function updateLocation(pos) {
   document.getElementById('location-text').textContent = `Precisión ±${Math.round(accuracy)}m`;
   updateNearestStop();
   checkStopProximity();
+  updateRecordingTrace();  // Actualizar trazo si está grabando
+  syncBoardedBusToUser();
+  detectMovement();
+}
+
+function detectMovement() {
+  if (!userLatLng) return;
+  const now = Date.now();
+  if (!lastMovementSample) {
+    lastMovementSample = { lat: userLatLng.lat, lng: userLatLng.lng, t: now };
+    return;
+  }
+  const dt = (now - lastMovementSample.t) / 1000;
+  if (dt < 5) return;
+  const dist = haversine(lastMovementSample.lat, lastMovementSample.lng, userLatLng.lat, userLatLng.lng);
+  const speed = dist / dt; // m/s
+  lastMovementSample = { lat: userLatLng.lat, lng: userLatLng.lng, t: now };
+
+  if (boardedBus) { movementPromptShown = false; return; }
+  if (speed < 2) { movementPromptShown = false; return; }
+  if (movementPromptShown) return;
+  promptBoardBus();
+}
+
+function getActiveBusesOnRoute(routeIdx) {
+  const route = ROUTES[routeIdx];
+  const now = new Date();
+  const curMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const dayKey = now.getDay() === 0 ? 'domingo' : now.getDay() === 6 ? 'sabado' : 'semana';
+  const times = route.schedule[dayKey] || route.schedule.semana;
+  const durationMin = parseDurationMin(route.duration);
+  return times.filter(dep => {
+    const elapsed = curMin - toMin(dep);
+    return elapsed >= 0 && elapsed <= durationMin;
+  });
+}
+
+function promptBoardBus() {
+  const active = getActiveBusesOnRoute(activeRouteIdx);
+  if (!active.length) return;
+  movementPromptShown = true;
+  const route = ROUTES[activeRouteIdx];
+  const existing = document.getElementById('movement-prompt');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'movement-prompt';
+  el.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.18);padding:12px 14px;z-index:9999;max-width:90vw;width:320px';
+  el.innerHTML = `
+    <div style="font-size:0.78rem;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:4px">Detectamos movimiento</div>
+    <div style="font-size:0.92rem;font-weight:700;color:#1a1a2e;margin-bottom:8px">¿Cuál bus abordaste?</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+      ${active.map(dep => `<button data-dep="${dep}" style="background:${route.color};color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600">${dep}</button>`).join('')}
+    </div>
+    <button id="movement-prompt-dismiss" style="width:100%;background:#f3f4f8;color:#6b7280;border:none;padding:6px;border-radius:6px;cursor:pointer;font-size:0.75rem">Ninguno</button>
+  `;
+  document.body.appendChild(el);
+  el.querySelectorAll('button[data-dep]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const dep = btn.dataset.dep;
+      window._abordarBus(activeRouteIdx, dep, toMin(dep));
+      el.remove();
+    });
+  });
+  el.querySelector('#movement-prompt-dismiss').addEventListener('click', () => el.remove());
+}
+
+function syncBoardedBusToUser() {
+  if (!boardedBus || !userLatLng) return;
+  const m = busMarkers.find(mk => mk._routeIdx === boardedBus.routeIdx && mk._depMin === boardedBus.depMin);
+  if (m) m.setLatLng(userLatLng);
 }
 
 function startGeolocation() {
@@ -460,6 +607,18 @@ function minToHHMM(min) {
   const h = Math.floor(min / 60) % 24;
   const m = Math.floor(min % 60);
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function nearestStopToUser(routeIdx) {
+  if (!userLatLng) return null;
+  const stops = routeStops[routeIdx];
+  if (!stops || !stops.length) return null;
+  let best = null, bestDist = Infinity;
+  for (const s of stops) {
+    const d = haversine(userLatLng.lat, userLatLng.lng, s.lat, s.lng);
+    if (d < bestDist) { bestDist = d; best = s; }
+  }
+  return best;
 }
 
 function nearestStopAtElapsed(routeIdx, elapsedMin) {
@@ -564,8 +723,13 @@ function updateBuses() {
     if (elapsed < 0 || elapsed > durationMin) return;
 
     const fraction = elapsed / durationMin;
-    const pt = getPointAlongRoute(geometry, fraction);
+    let pt = getPointAlongRoute(geometry, fraction);
     if (!pt) return;
+
+    const isBoarded = boardedBus && boardedBus.routeIdx === activeRouteIdx && boardedBus.depMin === depMin;
+    if (isBoarded && userLatLng) {
+      pt = { lat: userLatLng.lat, lng: userLatLng.lng, bearing: pt.bearing };
+    }
 
     const icon = makeBusIcon(pt.bearing);
     const arrivalStr = minToHHMM(depMin + durationMin);
@@ -575,7 +739,10 @@ function updateBuses() {
     const dest   = routeStops[activeRouteIdx].find(s => s.ends);
 
     const marker = L.marker([pt.lat, pt.lng], { icon, pane: 'busDots', zIndexOffset: 500 })
-      .addTo(map)
+      .addTo(map);
+    marker._routeIdx = activeRouteIdx;
+    marker._depMin = depMin;
+    marker
       .bindPopup(`
         <div class="popup-route" style="background:${route.color}20;border-left:3px solid ${route.color};padding:4px 8px;border-radius:4px;margin-bottom:6px;font-size:0.72rem;font-weight:600;color:${route.color}">${route.short}</div>
         <div class="popup-title" style="margin-bottom:8px">${route.name}</div>
@@ -591,8 +758,12 @@ function updateBuses() {
             <div style="font-size:0.68rem;color:#6b7280">${dest?.title || ''}</div>
           </div>
         </div>
-        <div style="font-size:0.78rem;color:#6b7280">Cerca de <strong style="color:#1a1a2e">${nearest.title}</strong></div>
+        ${isBoarded ? '' : `<div style="font-size:0.78rem;color:#6b7280">Cerca de <strong style="color:#1a1a2e">${nearest.title}</strong></div>`}
         <div style="font-size:0.78rem;color:${route.color};font-weight:600;margin-top:2px">${remaining} min restantes</div>
+        <div id="abordar-info-${depMin}" style="margin-top:6px"></div>
+        ${isBoarded
+          ? `<div style="margin-top:8px;width:100%;background:${route.color};color:#fff;padding:8px 12px;border-radius:8px;font-size:0.82rem;font-weight:700;text-align:center;letter-spacing:0.5px">✓ ABORDADO</div>`
+          : `<button onclick="window._abordarBus(${activeRouteIdx},'${dep}',${depMin})" style="margin-top:8px;width:100%;background:${route.color};color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:600">Abordar</button>`}
       `, { maxWidth: 240 });
     busMarkers.push(marker);
   });
@@ -744,7 +915,7 @@ function setupRecordButton() {
     if (trackingSession) stopTracking();
     else showTrackStartModal();
   });
-  document.getElementById('record-stop-btn').addEventListener('click', stopTracking);
+  document.getElementById('record-stop-btn')?.addEventListener('click', stopTracking);
   document.getElementById('track-start-cancel').addEventListener('click', () => {
     document.getElementById('track-start-modal').classList.add('hidden');
   });
@@ -784,9 +955,18 @@ function confirmStartTracking() {
     visited: new Map(),  // stopId → { stop, actualTime, elapsedMin }
   };
 
+  // Limpiar trazo anterior
+  recordingTracePoints = [];
+  if (recordingTracePolyline) {
+    map.removeLayer(recordingTracePolyline);
+    recordingTracePolyline = null;
+  }
+
+  saveTrackingSession();
   document.getElementById('record-btn').classList.add('active');
-  document.getElementById('record-bar').classList.remove('hidden');
+  document.getElementById('record-bar')?.classList.remove('hidden');
   updateRecordBar();
+  updatePolylinesVisibility();  // Actualizar color de ruta grabada
 
   if ('wakeLock' in navigator) {
     navigator.wakeLock.request('screen').then(wl => { wakeLock = wl; }).catch(() => {});
@@ -797,8 +977,21 @@ function stopTracking() {
   if (wakeLock) { wakeLock.release(); wakeLock = null; }
   lastSession = trackingSession;
   trackingSession = null;
+  clearTrackingSession();  // Limpiar almacenamiento
+  boardedBus = null;
+  clearBoardedCookie();
+
+  // Limpiar trazo de grabación
+  if (recordingTracePolyline) {
+    map.removeLayer(recordingTracePolyline);
+    recordingTracePolyline = null;
+    recordingTracePoints = [];
+  }
+
+  renderBoardedPanel();
   document.getElementById('record-btn').classList.remove('active');
-  document.getElementById('record-bar').classList.add('hidden');
+  document.getElementById('record-bar')?.classList.add('hidden');
+  updatePolylinesVisibility();  // Restaurar color de ruta
   if (lastSession && lastSession.visited.size > 0) showTrackingSummary();
 }
 
@@ -806,7 +999,8 @@ function updateRecordBar() {
   if (!trackingSession) return;
   const count = trackingSession.visited.size;
   const total = routeStops[trackingSession.routeIdx].length;
-  document.getElementById('record-bar-count').textContent = `${count} / ${total} paradas`;
+  const el = document.getElementById('record-bar-count');
+  if (el) el.textContent = `${count} / ${total} paradas`;
 }
 
 function checkStopProximity() {
@@ -820,10 +1014,261 @@ function checkStopProximity() {
     const hh = String(Math.floor(elapsedMin / 60)).padStart(2, '0');
     const mm = String(Math.floor(elapsedMin % 60)).padStart(2, '0');
     visited.set(stop.id, { stop, actualTime: `${hh}:${mm}`, elapsedMin });
+    saveStopHistory(routeIdx, stop.id, trackingSession.departureTime, elapsedMin);
+    saveTrackingSession();  // Guardar sesión con parada detectada
     updateRecordBar();
     showRecordToast(stop.title);
   });
 }
+
+function updateRecordingTrace() {
+  // Si no estamos grabando o abordados, limpiar el trazo
+  if (!trackingSession || !boardedBus || !userLatLng) {
+    if (recordingTracePolyline) {
+      map.removeLayer(recordingTracePolyline);
+      recordingTracePolyline = null;
+      recordingTracePoints = [];
+    }
+    return;
+  }
+
+  // Agregar punto actual si está suficientemente lejos del último punto
+  const lastPoint = recordingTracePoints[recordingTracePoints.length - 1];
+  if (lastPoint) {
+    const dist = haversine(lastPoint.lat, lastPoint.lng, userLatLng.lat, userLatLng.lng);
+    if (dist < 10) return;  // No agregar puntos muy cercanos (ruido)
+  }
+
+  recordingTracePoints.push({ lat: userLatLng.lat, lng: userLatLng.lng });
+
+  // Actualizar o crear la polyline
+  if (recordingTracePolyline) {
+    recordingTracePolyline.setLatLngs(recordingTracePoints);
+  } else {
+    recordingTracePolyline = L.polyline(recordingTracePoints, {
+      color: '#22c55e',  // Verde
+      weight: 4,
+      opacity: 0.8,
+      lineCap: 'round',
+      lineJoin: 'round',
+      pane: 'routeLine',
+    }).addTo(map);
+  }
+}
+
+// ── Persistencia de sesión de grabación ──
+const TRACKING_SESSION_KEY = 'miyoviajo_tracking_session';
+
+function saveTrackingSession() {
+  if (!trackingSession) {
+    localStorage.removeItem(TRACKING_SESSION_KEY);
+    return;
+  }
+  const sessionData = {
+    routeIdx: trackingSession.routeIdx,
+    departureTime: trackingSession.departureTime,
+    departureMs: trackingSession.departureMs,
+    visited: Array.from(trackingSession.visited.entries()),
+  };
+  try {
+    localStorage.setItem(TRACKING_SESSION_KEY, JSON.stringify(sessionData));
+  } catch {}
+}
+
+function loadTrackingSession() {
+  try {
+    const data = JSON.parse(localStorage.getItem(TRACKING_SESSION_KEY));
+    if (!data) return null;
+    // Validar que la ruta exista y que no haya expirado
+    const route = ROUTES[data.routeIdx];
+    if (!route) return null;
+    const now = new Date();
+    const dur = parseDurationMin(route.duration);
+    const elapsed = (now.getTime() - data.departureMs) / 60000;
+    if (elapsed < 0 || elapsed > dur + 60) return null; // +60 min de tolerancia
+    return {
+      routeIdx: data.routeIdx,
+      departureTime: data.departureTime,
+      departureMs: data.departureMs,
+      visited: new Map(data.visited),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearTrackingSession() {
+  localStorage.removeItem(TRACKING_SESSION_KEY);
+}
+
+// ── Cookie de bus abordado ──
+const BOARDED_COOKIE = 'miyoviajo_boarded';
+
+function writeBoardedCookie(bus) {
+  // Expira al final del día (cuando termina cualquier ruta razonable)
+  const exp = new Date();
+  exp.setHours(23, 59, 59, 0);
+  document.cookie = `${BOARDED_COOKIE}=${encodeURIComponent(JSON.stringify(bus))}; expires=${exp.toUTCString()}; path=/; SameSite=Lax`;
+}
+
+function readBoardedCookie() {
+  const m = document.cookie.split('; ').find(c => c.startsWith(BOARDED_COOKIE + '='));
+  if (!m) return null;
+  try { return JSON.parse(decodeURIComponent(m.split('=')[1])); }
+  catch { return null; }
+}
+
+function clearBoardedCookie() {
+  document.cookie = `${BOARDED_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+}
+
+function restoreTrackingSession() {
+  if (trackingSession) return;  // Ya hay una sesión activa
+  const saved = loadTrackingSession();
+  if (!saved) return;
+  trackingSession = saved;
+
+  // Cambiar a la ruta que se estaba grabando
+  if (saved.routeIdx !== activeRouteIdx) {
+    setActiveRoute(saved.routeIdx);
+  }
+
+  document.getElementById('record-btn')?.classList.add('active');
+  document.getElementById('record-bar')?.classList.remove('hidden');
+  updateRecordBar();
+  updatePolylinesVisibility();  // Aplicar color de ruta grabada
+}
+
+function restoreBoardedFromCookie() {
+  const saved = readBoardedCookie();
+  if (!saved) return;
+  // Verificar que el bus aún esté activo (no haya terminado su recorrido)
+  const route = ROUTES[saved.routeIdx];
+  if (!route) { clearBoardedCookie(); return; }
+  const now = new Date();
+  const curMin = now.getHours() * 60 + now.getMinutes();
+  const elapsed = curMin - saved.depMin;
+  const dur = parseDurationMin(route.duration);
+  if (elapsed < 0 || elapsed > dur) { clearBoardedCookie(); return; }
+  boardedBus = saved;
+  // Restaurar también la sesión de grabación
+  if (!trackingSession) {
+    const [h, m] = saved.dep.split(':').map(Number);
+    const depMs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0).getTime();
+    trackingSession = { routeIdx: saved.routeIdx, departureTime: saved.dep, departureMs: depMs, visited: new Map() };
+    document.getElementById('record-btn')?.classList.add('active');
+    document.getElementById('record-bar')?.classList.remove('hidden');
+    updateRecordBar();
+    updatePolylinesVisibility();  // Aplicar color de ruta grabada
+  }
+  renderBoardedPanel();
+}
+
+function renderBoardedPanel() {
+  const nextStop = document.getElementById('next-stop-section');
+  const sched = document.getElementById('schedule-section');
+  const boarded = document.getElementById('boarded-section');
+  if (!boarded) return;
+
+  if (!boardedBus) {
+    nextStop.classList.remove('hidden');
+    sched.classList.remove('hidden');
+    boarded.classList.add('hidden');
+    return;
+  }
+
+  nextStop.classList.add('hidden');
+  sched.classList.add('hidden');
+  boarded.classList.remove('hidden');
+
+  const route = ROUTES[boardedBus.routeIdx];
+  const dest = routeStops[boardedBus.routeIdx].find(s => s.ends);
+  document.getElementById('boarded-route').textContent = route.name;
+  document.getElementById('boarded-dep').textContent = boardedBus.dep;
+
+  // Llegada: usa promedio histórico de la parada destino para ese día/hora
+  const dayKey = ['domingo','semana','semana','semana','semana','semana','sabado'][new Date().getDay()];
+  const depHour = parseInt(boardedBus.dep.split(':')[0], 10);
+  let arrText = '—', meta = 'sin historial';
+  if (dest) {
+    const avg = getStopAverage(route.id, dest.id, dayKey, depHour);
+    if (avg) {
+      const arrMin = boardedBus.depMin + avg.avgMin;
+      arrText = minToHHMM(arrMin);
+      meta = `promedio de ${avg.samples} viaje${avg.samples === 1 ? '' : 's'}`;
+    } else {
+      // Fallback: duración programada
+      const dur = parseDurationMin(route.duration);
+      arrText = minToHHMM(boardedBus.depMin + dur) + ' (est.)';
+      meta = 'horario programado';
+    }
+  }
+  document.getElementById('boarded-arr').textContent = arrText;
+  document.getElementById('boarded-arr-meta').textContent = meta;
+
+  // ETA OSRM (tráfico libre) desde la ubicación del usuario
+  const osrmEl = document.getElementById('boarded-osrm');
+  if (dest && userLatLng) {
+    osrmEl.textContent = 'Calculando…';
+    const url = `https://router.project-osrm.org/route/v1/driving/${userLatLng.lng},${userLatLng.lat};${dest.lng},${dest.lat}?overview=false`;
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.routes || !data.routes[0]) { osrmEl.textContent = '—'; return; }
+        const sec = data.routes[0].duration;
+        const mins = Math.round(sec / 60);
+        const arrAt = new Date(Date.now() + sec * 1000);
+        const hh = String(arrAt.getHours()).padStart(2, '0');
+        const mm = String(arrAt.getMinutes()).padStart(2, '0');
+        osrmEl.textContent = `${hh}:${mm} · ${mins} min`;
+      })
+      .catch(() => { osrmEl.textContent = '—'; });
+  } else {
+    osrmEl.textContent = userLatLng ? '—' : 'sin GPS';
+  }
+}
+
+// ── Histórico de tiempos por parada ──
+const STOP_HISTORY_KEY = 'miyoviajo_stop_history';
+
+function loadStopHistory() {
+  try { return JSON.parse(localStorage.getItem(STOP_HISTORY_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function saveStopHistory(routeIdx, stopId, departureTime, elapsedMin) {
+  const route = ROUTES[routeIdx];
+  const now = new Date();
+  const dayKey = now.getDay() === 0 ? 'domingo' : now.getDay() === 6 ? 'sabado' : 'semana';
+  const depHour = parseInt(departureTime.split(':')[0], 10);
+  const history = loadStopHistory();
+  history.push({
+    routeId: route.id,
+    stopId,
+    dayKey,
+    depHour,
+    departureTime,
+    elapsedMin,
+    timestamp: now.toISOString(),
+  });
+  // Cap a 5000 entradas para evitar crecer indefinidamente
+  if (history.length > 5000) history.splice(0, history.length - 5000);
+  try { localStorage.setItem(STOP_HISTORY_KEY, JSON.stringify(history)); } catch {}
+}
+
+// Promedio de elapsedMin para una parada en un día/hora dados
+function getStopAverage(routeId, stopId, dayKey, depHour) {
+  const matches = loadStopHistory().filter(r =>
+    r.routeId === routeId && r.stopId === stopId &&
+    r.dayKey === dayKey && r.depHour === depHour
+  );
+  if (!matches.length) return null;
+  const sum = matches.reduce((a, r) => a + r.elapsedMin, 0);
+  return { avgMin: sum / matches.length, samples: matches.length };
+}
+
+window._getStopAverage = getStopAverage;
+window._dumpStopHistory = loadStopHistory;
 
 function showRecordToast(title) {
   const toast = document.getElementById('record-toast');
@@ -890,6 +1335,13 @@ async function sendSummaryToDiscord() {
 }
 
 // ── Boot ──
+// Restaurar sesión de grabación si existe, antes de inicializar el mapa
+const savedSession = loadTrackingSession();
+if (savedSession) {
+  activeRouteIdx = savedSession.routeIdx;
+  trackingSession = savedSession;
+}
+
 initMap();
 renderRouteDropdown();
 renderStopsList();
@@ -900,5 +1352,14 @@ setupDraggablePanel();
 setupEditBar();
 setupEditModal();
 setupRecordButton();
+
+// Aplicar estilos de grabación si se restauró sesión
+if (trackingSession) {
+  document.getElementById('record-btn')?.classList.add('active');
+  document.getElementById('record-bar')?.classList.remove('hidden');
+  // Acercar más cuando se restaura grabación
+  fitRoute(activeRouteIdx, true);
+}
+
 // buses start after route geometry loads (~1s)
-setTimeout(startBusSimulation, 1500);
+setTimeout(() => { startBusSimulation(); restoreBoardedFromCookie(); }, 1500);
