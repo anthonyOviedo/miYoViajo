@@ -916,6 +916,7 @@ function setupRecordButton() {
     else showTrackStartModal();
   });
   document.getElementById('record-stop-btn')?.addEventListener('click', stopTracking);
+  document.getElementById('record-manual-btn')?.addEventListener('click', registerNearestStop);
   document.getElementById('track-start-cancel').addEventListener('click', () => {
     document.getElementById('track-start-modal').classList.add('hidden');
   });
@@ -1019,6 +1020,43 @@ function checkStopProximity() {
     updateRecordBar();
     showRecordToast(stop.title);
   });
+}
+
+function registerNearestStop() {
+  if (!trackingSession) {
+    alert('No hay grabación activa');
+    return;
+  }
+
+  const { routeIdx, departureMs, visited } = trackingSession;
+
+  // Encontrar parada más cercana que no esté registrada
+  let nearest = null;
+  let minDist = Infinity;
+
+  routeStops[routeIdx].forEach(stop => {
+    if (visited.has(stop.id)) return;
+    const dist = userLatLng ? haversine(userLatLng.lat, userLatLng.lng, stop.lat, stop.lng) : Infinity;
+    if (dist < minDist) {
+      minDist = dist;
+      nearest = stop;
+    }
+  });
+
+  if (!nearest) {
+    alert('Todas las paradas ya fueron registradas');
+    return;
+  }
+
+  // Registrar parada
+  const elapsedMin = (Date.now() - departureMs) / 60000;
+  const hh = String(Math.floor(elapsedMin / 60)).padStart(2, '0');
+  const mm = String(Math.floor(elapsedMin % 60)).padStart(2, '0');
+  visited.set(nearest.id, { stop: nearest, actualTime: `${hh}:${mm}`, elapsedMin });
+  saveStopHistory(routeIdx, nearest.id, trackingSession.departureTime, elapsedMin);
+  saveTrackingSession();
+  updateRecordBar();
+  showRecordToast(`✓ ${nearest.title} (manual)`);
 }
 
 function updateRecordingTrace() {
